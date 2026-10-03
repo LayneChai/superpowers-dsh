@@ -128,6 +128,78 @@ dsh plugin --profile web remove superpowers-dsh
 - Consumers need **no npm account and no 2FA** — installing is a plain
   package download.
 
+## DSH version compatibility
+
+**Bottom line: compatible with every DSH version published on npm, verified
+end-to-end on DSH `0.2.0-rc.2` (the current `latest`). No known
+incompatibilities.**
+
+Checked 2026-10-03. npm dist-tags: `latest` = `next` = `0.2.0-rc.2`,
+`alpha` = `0.2.1-alpha.1`.
+
+### Support matrix
+
+| Check | Result |
+| --- | --- |
+| DSH interfaces this plugin uses | ① `ctx.skills.registerProvider(...)` (skill provider registration) ② `dsh.bundle.patch` (a bundle mounting its own `cordis.patch.yml`) |
+| Published versions carrying them | **31 released versions each** of `@deepseek-ai/dsh-skill` and `@deepseek-ai/dsh-app-boot` |
+| Per-version audit | **31 / 31 identical** — from the first release `0.0.1-rc.1` through the newest `0.2.1-alpha.1`, no signature or semantics changed |
+| End-to-end run | `lib/index.js` mounted into the **real `SkillRegistry`** of local DSH `0.2.0-rc.2`: `list()` returned 15 skills and every `get()` returned a body and a `resourceBase` |
+| This plugin's version | `0.2.0` (skill content synced from obra/superpowers `v6.4.2`) |
+| Runtime dependencies | None. Node built-ins only, so a DSH dependency-tree change cannot break it |
+| Node.js | Verified on `v22.22.2`; DSH declares no `engines`, and neither does this plugin |
+
+### Known compatibility notes
+
+- **No known incompatibilities.** Since `0.1.7-rc.2` DSH has a plugin
+  compatibility gate (`evaluatePluginCompatibility`): it **only inspects the
+  `@deepseek-ai/dsh*` peerDependencies a plugin declares** and skips the whole
+  bundle when a range does not match. This plugin declares no peerDependencies,
+  so the gate **never blocks it** — which also means DSH does not version-check
+  it for you, so re-run the audit below after a DSH upgrade.
+- **Same-name precedence is deliberate**: the plugin registers at
+  `PACKAGED_SKILL_RANK = 550` while DSH's bundled root is
+  `BUNDLED_SKILL_RANK = 600` (lower wins), so **your own skill wins a
+  same-name collision**. No in-box DSH skill shares a name with these.
+- **Windows note**: the bash helpers in the skill bodies need Git for Windows
+  (Git Bash); the Node helpers (`server.cjs`, `render-graphs.js`) run
+  everywhere. The prose invokes bundled scripts through their interpreter
+  (`bash scripts/...`), so it does not depend on Unix executable bits.
+- The install method does not affect compatibility: npm, GitHub, and a linked
+  local folder all load the same bundle declaration.
+
+### How to re-verify compatibility
+
+One command re-runs every check above — including the real-registry mount —
+against **the DSH you actually have installed**:
+
+```sh
+node scripts/check-dsh-compat.mjs
+# or point it at another node_modules, or set $DSH_NODE_MODULES
+node scripts/check-dsh-compat.mjs D:\path\to\profile\node_modules
+```
+
+Output on this machine:
+
+```
+dsh SDK      : @deepseek-ai/dsh-skill 0.2.0-rc.2
+mounted      : 15 skills listed and read through the real SkillRegistry
+rank         : PACKAGED_SKILL_RANK=550 is below BUNDLED_SKILL_RANK=600
+
+check-dsh-compat: OK — this plugin matches the installed DSH SDK
+```
+
+It checks, in order: that the SDK is present and which version it is → that the
+installed SDK's own type declarations still declare the provider interface this
+plugin implements (`registerProvider`, `SkillProvider.list/get`,
+`SkillCandidate`, `SkillResourceBase`, the `'custom'` source bucket) → that
+`lib/index.js` really mounts into `SkillRegistry` and every skill reads back →
+the rank relationship. Any failure exits 1 and names the contract that changed.
+
+> The conclusion holds for the DSH version it was verified against. On a newer
+> DSH, run the command above first: if upstream changes the skill interface it
+> names the exact break instead of letting skills disappear quietly.
+
 ## Skills
 
 | Skill | Purpose |
@@ -189,6 +261,10 @@ node scripts/sync-from-upstream.mjs .upstream/superpowers
 
 # 3. Verify (provider lists every skill, frontmatter is valid, no dangling refs)
 node scripts/verify-skills.mjs
+
+# 4. Compatibility (replays the contract and the real-registry mount against
+#    the DSH you have installed)
+node scripts/check-dsh-compat.mjs
 ```
 
 What this sync brought in from upstream:

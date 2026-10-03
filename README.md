@@ -119,6 +119,68 @@ dsh plugin --profile web remove superpowers-dsh
   下次重启 profile 生效
 - 使用者**不需要 npm 账号，也不需要 2FA**——安装只是普通的包下载
 
+## DSH 版本兼容性
+
+**结论：与 npm 上已发布的全部 DSH 版本兼容；已在 DSH `0.2.0-rc.2`（当前 `latest`）上端到端实跑验证。无已知不兼容问题。**
+
+核对日期 2026-10-03，npm 发布通道：`latest` = `next` = `0.2.0-rc.2`，`alpha` = `0.2.1-alpha.1`。
+
+### 支持矩阵
+
+| 检查项 | 结果 |
+| --- | --- |
+| 插件依赖的 DSH 接口 | ① `ctx.skills.registerProvider(...)`（技能提供者注册）② `dsh.bundle.patch`（bundle 挂载自己的 `cordis.patch.yml`） |
+| 已发布版本数 | 承载接口的两个包 `@deepseek-ai/dsh-skill` 与 `@deepseek-ai/dsh-app-boot` 各 **31 个已发布版本** |
+| 逐版本核对结果 | **31 / 31 全部一致**，从最早的 `0.0.1-rc.1` 到最新的 `0.2.1-alpha.1`，接口签名与语义均未变 |
+| 端到端实跑 | 把 `lib/index.js` 挂进本机 DSH `0.2.0-rc.2` 的**真实 `SkillRegistry`**：`list()` 返回 15 个技能，逐个 `get()` 都能取到正文与 `resourceBase` |
+| 插件自身版本 | `0.2.0`（技能内容同步自 obra/superpowers `v6.4.2`） |
+| 运行时依赖 | 无。只用 Node 内置模块，不引入任何第三方依赖，因此不受 DSH 依赖树变化影响 |
+| Node.js | 本机验证 `v22.22.2`；DSH 自身未声明 `engines`，本插件也未限制 |
+
+### 已知兼容性说明
+
+- **无已知不兼容问题。** 上游 DSH 从 `0.1.7-rc.2` 起加入插件兼容性闸门
+  `evaluatePluginCompatibility`：它**只检查插件自己声明的 `@deepseek-ai/dsh*`
+  peerDependencies**，范围不满足就把整个 bundle 跳过并报错。本插件不声明任何
+  peerDependencies，因此这道闸门**不会拦截它**（同时它也意味着 DSH 不会替你校验版本，
+  所以升级 DSH 后建议跑一次下面的复核命令）。
+- **同名技能的优先级是有意选择**：插件以 `PACKAGED_SKILL_RANK = 550` 注册，DSH 内置
+  bundled 根为 `BUNDLED_SKILL_RANK = 600`（数值越小越优先），所以**同名时你自己的技能
+  会覆盖本插件的同名技能**。DSH 内置技能里没有与本插件重名的技能。
+- **Windows 提示**：技能正文里的 bash 辅助脚本需要 Git for Windows（Git Bash）；Node
+  脚本（`server.cjs`、`render-graphs.js`）全平台可用。技能正文已按"经解释器调用"
+  （`bash scripts/...`）编写，不依赖 Unix 可执行位。
+- 安装方式不影响兼容性：npm 包、GitHub 源、本地目录链接三种安装方式加载的是同一份
+  bundle 声明。
+
+### 兼容性怎么复核
+
+一条命令，对着**你本机安装的** DSH 复跑上面全部检查（包括真实注册表挂载）：
+
+```sh
+node scripts/check-dsh-compat.mjs
+# 也可指定别的 node_modules，或用 $DSH_NODE_MODULES
+node scripts/check-dsh-compat.mjs D:\path\to\profile\node_modules
+```
+
+本机实测输出：
+
+```
+dsh SDK      : @deepseek-ai/dsh-skill 0.2.0-rc.2
+mounted      : 15 skills listed and read through the real SkillRegistry
+rank         : PACKAGED_SKILL_RANK=550 is below BUNDLED_SKILL_RANK=600
+
+check-dsh-compat: OK — this plugin matches the installed DSH SDK
+```
+
+它依次检查：SDK 是否存在及版本 → 已安装 SDK 的类型声明里是否仍声明本插件实现的接口
+（`registerProvider`、`SkillProvider.list/get`、`SkillCandidate`、`SkillResourceBase`、
+`'custom'` 来源桶）→ 把 `lib/index.js` 真的挂进 `SkillRegistry` 并逐个读回 →
+比较 rank 关系。任一项不成立就 `exit 1`，并指出具体是哪条契约变了。
+
+> 结论以**验证时的 DSH 版本**为准。如果你跑的是更新的 DSH，先跑一遍上面的命令；
+> 上游一旦改动技能接口，它会立刻报出具体变化，而不是等到技能悄悄消失。
+
 ## 技能列表
 
 | 技能 | 用途 |
@@ -174,6 +236,9 @@ node scripts/sync-from-upstream.mjs .upstream/superpowers
 
 # 3. 校验（provider 能列出全部技能、frontmatter 合法、没有悬空引用）
 node scripts/verify-skills.mjs
+
+# 4. 兼容性（对着本机安装的 DSH 真实 SDK 复跑契约与挂载检查）
+node scripts/check-dsh-compat.mjs
 ```
 
 本次同步带来的上游变更：

@@ -12,6 +12,8 @@
   "files": [
     "lib",
     "skills",
+    "scripts",
+    "port",
     "static",
     "cordis.patch.yml",
     "README.md",
@@ -19,6 +21,7 @@
   ],
   "scripts": {
     "verify": "node scripts/verify-skills.mjs",
+    "compat": "node scripts/check-dsh-compat.mjs",
     "sync": "node scripts/sync-from-upstream.mjs"
   },
   "license": "MIT",
