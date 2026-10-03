@@ -28,25 +28,6 @@ agent preset 的作用域链都会合并这些技能。技能正文随包分发
 host 技能注册表，你 profile 里的每个 agent 会话都能在技能目录中看到它们，
 并可用 `skill` 工具加载。技能内容同步自上游 **obra/superpowers v6.4.2**。
 
-### 前置条件
-
-- 已安装 DeepSeek Harness，并且有 **pnpm** —— `dsh plugin` 命令内部调用
-  pnpm（用 `pnpm --version` 检查；没有的话到 https://pnpm.io 安装）
-- `dsh` 命令行。它随 Harness 一起提供，通常以 `npx @deepseek-ai/dsh web`
-  方式启动，所以只在该命令的进程内可用。要么把它装成全局命令，要么在下面
-  所有命令前加 `npx`：
-
-  ```sh
-  # 方式一：全局安装 dsh，永久可用（推荐）
-  npm install -g @deepseek-ai/dsh
-  dsh --version
-
-  # 方式二：不安装，所有命令用 npx 形式
-  npx @deepseek-ai/dsh --version
-  ```
-
-  下文所有 `dsh ...` 示例都可以等价写成 `npx @deepseek-ai/dsh ...`。
-
 ### 最简单：一条命令
 
 不需要先全局安装 `dsh`，在任意目录执行：
