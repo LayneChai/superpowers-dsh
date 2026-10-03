@@ -30,27 +30,6 @@ A **plugin bundle** for DeepSeek Harness (DSH). Installing it registers the
 profile sees them in its skill catalog and can load them with the `skill`
 tool. Skill content is synced from upstream **obra/superpowers v6.4.2**.
 
-### Prerequisites
-
-- DeepSeek Harness, plus **pnpm** — the `dsh plugin` command forwards to pnpm
-  (`pnpm --version` to check; install from https://pnpm.io if missing)
-- The `dsh` CLI. It ships with the Harness and is normally started as
-  `npx @deepseek-ai/dsh web`, so it is only on `PATH` inside that process
-  tree. Either make it permanent, or use the `npx` form of every command
-  below:
-
-  ```sh
-  # make `dsh` permanently available (recommended):
-  npm install -g @deepseek-ai/dsh
-  dsh --version
-
-  # or skip the install and run everything through npx:
-  npx @deepseek-ai/dsh --version
-  ```
-
-  Every `dsh ...` example below works identically as
-  `npx @deepseek-ai/dsh ...`.
-
 ### Simplest: one command
 
 No global `dsh` install required. Run this from any directory:
