@@ -47,9 +47,10 @@ These thoughts mean STOP—you're rationalizing:
 
 ## Platform Adaptation
 
-This is the DeepSeek Harness port. Read `references/dsh-tools.md` for the
-tool mapping and DSH-specific mechanisms (the `skill` tool, `subagent`,
-`workflow`, `goal` tools, and Windows `pwsh` notes).
+This package is the DeepSeek Harness port. Its platform reference is
+`references/dsh-tools.md`: the Claude-Code → DSH tool mapping plus the
+DSH-specific mechanisms these skills rely on (`skill`, `subagent` /
+`subagent_fork`, `workflow`, `goal`, and the Windows `pwsh` notes).
 
 ## Invoking skills on DSH
 

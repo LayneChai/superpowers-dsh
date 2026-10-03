@@ -2,3 +2,8 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+
+# Upstream checkout used by scripts/sync-from-upstream.mjs
+.upstream/
+# Staging tree the sync script builds before swapping it into skills/
+.skills-sync-tmp/

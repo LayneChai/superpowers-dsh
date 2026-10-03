@@ -24,9 +24,9 @@ agent preset 的作用域链都会合并这些技能。技能正文随包分发
 
 ## 在 DeepSeek Harness 中安装与使用
 
-这是 DeepSeek Harness 的**插件包**。安装后会把下面的 14 个技能注册进
+这是 DeepSeek Harness 的**插件包**。安装后会把下面的 15 个技能注册进
 host 技能注册表，你 profile 里的每个 agent 会话都能在技能目录中看到它们，
-并可用 `skill` 工具加载。
+并可用 `skill` 工具加载。技能内容同步自上游 **obra/superpowers v6.4.2**。
 
 ### 前置条件
 
@@ -145,7 +145,7 @@ dsh plugin --profile web remove superpowers-dsh
 | `using-superpowers` | 如何查找和使用技能；入口技能 |
 | `brainstorming` | 通过协作对话把想法变成设计 |
 | `writing-plans` | 根据规格编写全面的实施计划 |
-| `executing-plans` | 按书面计划执行，带评审检查点 |
+| `executing-plans` | 本会话内（Native/内联）执行计划，末尾一次整分支评审 |
 | `subagent-driven-development` | 每个任务派发全新子代理并评审 |
 | `dispatching-parallel-agents` | 把独立工作扇出到并行代理 |
 | `systematic-debugging` | 先找根因的调试纪律 |
@@ -156,6 +156,7 @@ dsh plugin --profile web remove superpowers-dsh
 | `finishing-a-development-branch` | 安全地整合已完成的工作 |
 | `using-git-worktrees` | 功能开发的隔离工作区 |
 | `writing-skills` | 以 TDD 方式编写并验证新技能 |
+| `diagnosing-superpowers` | 会话出问题时读磁盘上的 transcript，带 `path:line` 取证复盘 |
 
 ## 工作原理
 
@@ -171,6 +172,59 @@ dsh plugin --profile web remove superpowers-dsh
 - **零运行时依赖** —— 插件只使用 Node 内置模块，消费注入的 `ctx.skills`
   服务接口。
 
+## 上游同步（当前：obra/superpowers v6.4.2）
+
+`skills/` 是**生成产物**，不要手改。同步逻辑写在两个地方，改它们再重跑即可：
+
+- `scripts/sync-from-upstream.mjs` —— 拉上游技能树 + 重放所有 DSH 适配
+  （每条适配都是一个带断言的字符串改写，上游一旦改了原文就**直接报错**，
+  不会静默丢适配）。
+- `port/overrides/` —— 只属于 DSH 的文件（`using-superpowers/references/dsh-tools.md`），
+  覆盖到同步结果上。
+
+```sh
+# 1. 取上游对应版本的源码（git 协议在部分网络不可用，走 codeload）
+mkdir -p .upstream/superpowers
+curl -L https://codeload.github.com/obra/superpowers/tar.gz/refs/tags/v6.4.2 \
+  | tar -xz -C .upstream/superpowers --strip-components=1
+
+# 2. 重放同步
+node scripts/sync-from-upstream.mjs .upstream/superpowers
+
+# 3. 校验（provider 能列出全部技能、frontmatter 合法、没有悬空引用）
+node scripts/verify-skills.mjs
+```
+
+本次同步带来的上游变更：
+
+- **新增技能 `diagnosing-superpowers`**（v6.4.1）：会话跑歪之后，定位并读取
+  磁盘上的 transcript，逐条给出 `path:line` 证据复盘；按需生成脱敏 bundle 或
+  GitHub issue 草稿。DSH 侧的 transcript 位置与解压方式已写进
+  `skills/diagnosing-superpowers/references/session-discovery.md` 和
+  `skills/using-superpowers/references/dsh-tools.md`。
+- **`executing-plans` 重写为 Native（内联）执行**（v6.4.1）：不再每三个任务
+  停一次让你确认；整个计划自己执行完，末尾只做**一次**整分支评审。共享
+  SDD 的 workspace 与 ledger，新增 `scripts/task-start` / `scripts/task-done`
+  两个辅助脚本。
+- **`writing-plans`**（v6.4.1 + v6.4.2）：计划存盘后必须先给你看过再执行；
+  新增 `Review Focus` 段（规格暗示但任务测试没覆盖的 5 类输入/失效模式）；
+  `No Placeholders` 换成 `What a Step Contains`（测试步给断言、代码步给签名
+  与文件、验证步给命令与通过输出），自审增加“篇幅比例”检查；删除
+  `plan-document-reviewer-prompt.md`。
+- **`brainstorming`**（v6.4.1）：先弄清“你为什么想要这个”，把你的意图复述
+  回去待纠正，并把审批绑定到实际的设计/计划阶段。
+- **代码评审**（v6.4.1）：规格没写的输入按“合理使用者会预期什么”判定，新增
+  “Declined to judge”清单由执行方逐条裁定；`BASE_SHA` 备用写法改为
+  `git merge-base origin/main HEAD`。
+- **`test-driven-development`**（v6.4.1）：绿的标准是**项目整套测试**，不只是
+  你写的那一个文件；跑项目测试命令并按名字上报每一个失败。
+- **`subagent-driven-development`**（v6.4.1）：workspace 记录归属计划，同名
+  计划不再互相覆盖；`review-package` 拒绝空区间或非后代区间（exit 3）。
+- **可执行位修复**（v6.4.1）：技能正文里的脚本改为经解释器调用
+  （`bash scripts/foo.sh`、`node render-graphs.js`），本 port 把
+  `task-start` / `task-done` 内部的脚本互相调用也一并补齐（Windows 没有
+  Unix 可执行位）。
+
 ## 移植说明（对比上游 obra/superpowers）
 
 - 去掉了命名空间前缀：`superpowers:brainstorming` → `brainstorming`
@@ -178,15 +232,36 @@ dsh plugin --profile web remove superpowers-dsh
 - `using-superpowers` 现在介绍 DSH 的 `skill` 工具，并指向
   `skills/using-superpowers/references/dsh-tools.md`——完整的
   Claude-Code → DSH 工具映射（`pwsh`、`subagent`、`workflow`、`goal` ...）。
-- 子代理引用映射到 DSH 的 `subagent` / `subagent_fork` 工具。
+  上游那份“按 harness 选参考文件”的清单（Claude Code / Codex / Gemini /
+  Copilot / Pi / Antigravity / Hermes / Muse）只保留 DSH 一份，其余上游
+  `references/*-tools.md` 不随包分发。
+- 子代理引用映射到 DSH 的 `subagent` / `subagent_fork`；上游的命名 agent
+  （`superpowers:code-reviewer`）在 DSH 不存在，按技能自带的 prompt 模板派发。
+- `using-superpowers` 里的 `<SUBAGENT-STOP>` 不再保留：DSH 的子代理同样需要
+  遵守技能（实现者子代理必须走 TDD）。
+- 跨 harness 的路径改成 DSH 路径：`~/.claude/skills/` → `$DSH_HOME/skills/`，
+  `~/.superpowers/...` → `$DSH_HOME/...`（默认 `~/.dsh`）。
+- `diagnosing-superpowers` 补了 DSH 的会话存储事实
+  （`$DSH_HOME/sessions/<cwd-slug>/session-<uuid>/session.*.jsonl.zstd`，
+  多 zstd frame 拼接，需按 frame 解压）。
 - `brainstorming` 的视觉伴侣补充了 Windows 说明：Node 服务
   （`scripts/server.cjs`）全平台可跑；`.sh` 辅助脚本仅限 bash。
+- `writing-skills/examples/CLAUDE_MD_TESTING.md` 原样保留（上游示例文档，
+  里面仍是 Claude Code 路径），只为让 `testing-skills-with-subagents.md`
+  的引用不断链。
 
 ## 添加自己的技能
 
-往包里放一个新的 `skills/<kebab-name>/SKILL.md` 即可——它必须以 YAML
-frontmatter 开头（`name` + `description`，可选 `whenToUse`）。无需改任何
-代码：`list()` 会自动发现它。
+`list()` 会自动发现包里任何 `skills/<kebab-name>/SKILL.md`——只要它以 YAML
+frontmatter 开头（`name` + `description`，可选 `whenToUse`），无需改代码。
+
+注意：`skills/` 是上游同步的生成目录，**重跑 `scripts/sync-from-upstream.mjs`
+会整体重建它**，直接放进去的自建技能会被删掉。两个安全位置：
+
+- 放到 `$DSH_HOME/skills/`（用户级）或项目的 `.dsh/skills/` —— 与插件无关，
+  最省事；
+- 或者放进 `port/overrides/<kebab-name>/SKILL.md` —— 同步时会被复制进
+  `skills/`，因此不会被清掉。
 
 ## 许可证
 
