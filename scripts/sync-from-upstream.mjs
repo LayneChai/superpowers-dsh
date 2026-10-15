@@ -20,7 +20,7 @@
  *   node scripts/sync-from-upstream.mjs .upstream/superpowers
  *
  * Get a checkout with:
- *   curl -L https://codeload.github.com/obra/superpowers/tar.gz/refs/tags/v6.4.2 \
+ *   curl -L https://codeload.github.com/obra/superpowers/tar.gz/refs/tags/v7.0.0 \
  *     | tar -xz -C .upstream --transform 's,^[^/]*,superpowers,'
  *
  * A missing anchor fails the run loudly: upstream rewrote text this port
@@ -112,12 +112,10 @@ const TRANSFORMS = [
       '- `using-superpowers` itself is discoverable the same way.'
     ].join('\n')
   },
-  {
-    name: 'brainstorming: reference the companion by bare relative name',
-    file: 'brainstorming/SKILL.md',
-    find: '`skills/brainstorming/visual-companion.md`',
-    replace: '`visual-companion.md`'
-  },
+  // NOTE: upstream v7.0.0 rewrote brainstorming and now names its companion as
+  // a bare `visual-companion.md` itself, so the old transform that rewrote
+  // `skills/brainstorming/visual-companion.md` has been removed. Re-add one if
+  // a future release regresses to the `skills/...` form.
   {
     name: 'brainstorming: DSH platform note for the visual companion',
     file: 'brainstorming/visual-companion.md',

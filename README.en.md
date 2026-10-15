@@ -23,12 +23,23 @@ skills. Skill bodies ship inside the package (`skills/<name>/SKILL.md`) and
 are located from `import.meta.url` — an assembly fact of the package, never
 user configuration.
 
+## Contents
+
+- [Install & use in your DeepSeek Harness](#install--use-in-your-deepseek-harness)
+- [DSH version compatibility](#dsh-version-compatibility)
+- [Skills](#skills)
+- [How it works](#how-it-works)
+- [Upstream sync](#upstream-sync)
+- [Porting notes](#porting-notes)
+- [Adding your own skills](#adding-your-own-skills)
+- [License](#license)
+
 ## Install & use in your DeepSeek Harness
 
 A **plugin bundle** for DeepSeek Harness (DSH). Installing it registers the
 15 skills below into the host skill registry, so every agent session in your
 profile sees them in its skill catalog and can load them with the `skill`
-tool. Skill content is synced from upstream **obra/superpowers v6.4.2**.
+tool. Skill content is synced from upstream **obra/superpowers v7.0.0**.
 
 ### Simplest: one command
 
@@ -145,7 +156,7 @@ Checked 2026-10-03. npm dist-tags: `latest` = `next` = `0.2.0-rc.2`,
 | Published versions carrying them | **31 released versions each** of `@deepseek-ai/dsh-skill` and `@deepseek-ai/dsh-app-boot` |
 | Per-version audit | **31 / 31 identical** — from the first release `0.0.1-rc.1` through the newest `0.2.1-alpha.1`, no signature or semantics changed |
 | End-to-end run | `lib/index.js` mounted into the **real `SkillRegistry`** of local DSH `0.2.0-rc.2`: `list()` returned 15 skills and every `get()` returned a body and a `resourceBase` |
-| This plugin's version | `0.2.0` (skill content synced from obra/superpowers `v6.4.2`) |
+| This plugin's version | `0.3.0` (skill content synced from obra/superpowers `v7.0.0`) |
 | Runtime dependencies | None. Node built-ins only, so a DSH dependency-tree change cannot break it |
 | Node.js | Verified on `v22.22.2`; DSH declares no `engines`, and neither does this plugin |
 
@@ -205,7 +216,7 @@ the rank relationship. Any failure exits 1 and names the contract that changed.
 | Skill | Purpose |
 | --- | --- |
 | `using-superpowers` | How to find and use skills; the entry-point skill |
-| `brainstorming` | Turn ideas into designs through collaborative dialogue |
+| `brainstorming` | Find out what you actually want, and why, before anything gets built |
 | `writing-plans` | Write comprehensive implementation plans from specs |
 | `executing-plans` | Execute a plan inline (Native) in this session, one whole-branch review at the end |
 | `subagent-driven-development` | Dispatch fresh subagents per task with reviews |
@@ -237,7 +248,10 @@ the rank relationship. Any failure exits 1 and names the contract that changed.
 - **Zero runtime dependencies** — the plugin imports only Node built-ins and
   consumes the injected `ctx.skills` service interface.
 
-## Upstream sync (currently obra/superpowers v6.4.2)
+## Upstream sync
+
+Currently synced upstream version: **obra/superpowers v7.0.0** (recorded in
+`package.json` as `dsh.superpowersUpstream`).
 
 `skills/` is **generated output** — do not hand-edit it. The sync lives in two
 places; change those and re-run:
@@ -253,7 +267,7 @@ places; change those and re-run:
 # 1. Fetch the upstream release (git-over-https is blocked on some networks;
 #    codeload works)
 mkdir -p .upstream/superpowers
-curl -L https://codeload.github.com/obra/superpowers/tar.gz/refs/tags/v6.4.2 \
+curl -L https://codeload.github.com/obra/superpowers/tar.gz/refs/tags/v7.0.0 \
   | tar -xz -C .upstream/superpowers --strip-components=1
 
 # 2. Replay the sync
@@ -267,44 +281,37 @@ node scripts/verify-skills.mjs
 node scripts/check-dsh-compat.mjs
 ```
 
-What this sync brought in from upstream:
+What this sync brought in from upstream (**v7.0.0**, 2026-10-10; still 15
+skills):
 
-- **New skill `diagnosing-superpowers`** (v6.4.1): when a session goes wrong,
-  locate the transcripts on disk and report what happened with `path:line`
-  evidence; build a scrubbed bundle or a GitHub issue draft on request. The DSH
-  transcript location and decompression recipe are recorded in
-  `skills/diagnosing-superpowers/references/session-discovery.md` and
-  `skills/using-superpowers/references/dsh-tools.md`.
-- **`executing-plans` rebuilt as Native (inline) execution** (v6.4.1): no
-  check-in every few tasks; the session implements every task itself, then one
-  whole-branch review at the end. Shares SDD's workspace and ledger, and adds
-  `scripts/task-start` / `scripts/task-done`.
-- **`writing-plans`** (v6.4.1 + v6.4.2): the saved plan is reviewed before
-  anything runs; a new `Review Focus` section names the inputs or failure modes
-  the spec implies but no task's tests exercise; `No Placeholders` became
-  `What a Step Contains` (test steps give assertions, code steps give the
-  signature and file, verification steps give the command and its passing
-  output), self-review gained a proportion check, and
-  `plan-document-reviewer-prompt.md` is gone.
-- **`brainstorming`** (v6.4.1): establish why your partner wants the thing
-  before proposing features, reflect the intent back for correction, and tie
-  approval to the actual design and planning stages.
-- **Code review** (v6.4.1): reviewers judge behavior the spec is silent on by
-  what a reasonable person would expect, plus a "Declined to judge" list the
-  executor rules on; the `BASE_SHA` alternative is now
-  `git merge-base origin/main HEAD`.
-- **`test-driven-development`** (v6.4.1): the project's suite defines green, not
-  just your test file; run the project's test command and report every failure
-  by name.
-- **`subagent-driven-development`** (v6.4.1): a workspace records its owning
-  plan so same-basename plans stop colliding; `review-package` rejects empty or
-  non-descendant ranges (exit 3).
-- **Executable-bit fix** (v6.4.1): skill prose invokes bundled scripts through
-  their interpreter (`bash scripts/foo.sh`, `node render-graphs.js`); this port
-  extends that to the helpers `task-start` / `task-done` call each other with
-  (Windows has no Unix exec bit at all).
+- **`brainstorming` was rebuilt from scratch** (#2463 / #2482 / #2483): the
+  first message offers to skip the questions, then asks one open question about
+  a real moment; it plays each part back in 200–300 words for correction, sizes
+  the work in plain words once it understands (do it / agree it in chat / write
+  a design document) with your override, and finds out which how-it-gets-made
+  choices you want to own (platform, language, libraries, medium).
+- **A builder check replaces the spec-document reviewer**: adds
+  `skills/brainstorming/builder-check-prompt.md` (a fresh subagent reads the
+  design as the person who'll build it and lists what it still needs to ask) and
+  removes `skills/brainstorming/spec-document-reviewer-prompt.md`. One round of
+  questions only.
+- **`subagent-driven-development`'s `scripts/sdd-workspace`**: no longer
+  overwrites a repo's own `.superpowers/sdd/.gitignore` (it writes the default
+  only when none exists), and on Windows/Git Bash plan markers stay
+  repo-relative instead of recording a machine-specific absolute path.
+- **`executing-plans`'s `scripts/task-done`**: a test command that passes
+  silently now records the task in the ledger as `→ (no output)`; previously the
+  empty `grep|tail` exited 1 and a finished task looked unfinished.
+- **`requesting-code-review`**: the base-SHA example uses `cut -d' ' -f1`,
+  because Claude Code substitutes `$1` in a skill body with an argument word.
+- **`systematic-debugging`**: the multi-layer diagnostic example no longer
+  prints the secret value it checks for.
+- **Visual companion `scripts/server.cjs`**: fixes `String.replace` treating
+  `$'` / `$&` as replacement patterns; content is now inserted literally.
+- Everything else in the release is Antigravity / Hermes / Claude Code hook
+  work, which does not apply to DSH (it has no hook system).
 
-## Porting notes (vs. upstream obra/superpowers)
+## Porting notes
 
 - Namespace prefixes removed: `superpowers:brainstorming` → `brainstorming`
   (DSH skills are addressed by bare name).
@@ -327,6 +334,10 @@ What this sync brought in from upstream:
   concatenated zstd frames that need frame-by-frame decompression).
 - `brainstorming`'s visual companion adds a Windows note: the Node server
   (`scripts/server.cjs`) runs everywhere; the `.sh` helpers are bash-only.
+- After the v7.0.0 rewrite, upstream itself names the companion as a bare
+  `visual-companion.md`, so this port's old rewrite of
+  `skills/brainstorming/visual-companion.md` is gone (the sync script carries a
+  NOTE; re-add it if a future release regresses to the path form).
 - `writing-skills/examples/CLAUDE_MD_TESTING.md` ships verbatim (an upstream
   example document that still uses Claude Code paths), so the reference from
   `testing-skills-with-subagents.md` does not dangle.

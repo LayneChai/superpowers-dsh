@@ -22,11 +22,22 @@ agent preset 的作用域链都会合并这些技能。技能正文随包分发
 （`skills/<name>/SKILL.md`），通过 `import.meta.url` 定位——这是包的
 组装事实，不需要任何用户配置。
 
+## 目录
+
+- [在 DeepSeek Harness 中安装与使用](#在-deepseek-harness-中安装与使用)
+- [DSH 版本兼容性](#dsh-版本兼容性)
+- [技能列表](#技能列表)
+- [工作原理](#工作原理)
+- [上游同步](#上游同步)
+- [移植说明](#移植说明)
+- [添加自己的技能](#添加自己的技能)
+- [许可证](#许可证)
+
 ## 在 DeepSeek Harness 中安装与使用
 
 这是 DeepSeek Harness 的**插件包**。安装后会把下面的 15 个技能注册进
 host 技能注册表，你 profile 里的每个 agent 会话都能在技能目录中看到它们，
-并可用 `skill` 工具加载。技能内容同步自上游 **obra/superpowers v6.4.2**。
+并可用 `skill` 工具加载。技能内容同步自上游 **obra/superpowers v7.0.0**。
 
 ### 最简单：一条命令
 
@@ -133,7 +144,7 @@ dsh plugin --profile web remove superpowers-dsh
 | 已发布版本数 | 承载接口的两个包 `@deepseek-ai/dsh-skill` 与 `@deepseek-ai/dsh-app-boot` 各 **31 个已发布版本** |
 | 逐版本核对结果 | **31 / 31 全部一致**，从最早的 `0.0.1-rc.1` 到最新的 `0.2.1-alpha.1`，接口签名与语义均未变 |
 | 端到端实跑 | 把 `lib/index.js` 挂进本机 DSH `0.2.0-rc.2` 的**真实 `SkillRegistry`**：`list()` 返回 15 个技能，逐个 `get()` 都能取到正文与 `resourceBase` |
-| 插件自身版本 | `0.2.0`（技能内容同步自 obra/superpowers `v6.4.2`） |
+| 插件自身版本 | `0.3.0`（技能内容同步自 obra/superpowers `v7.0.0`） |
 | 运行时依赖 | 无。只用 Node 内置模块，不引入任何第三方依赖，因此不受 DSH 依赖树变化影响 |
 | Node.js | 本机验证 `v22.22.2`；DSH 自身未声明 `engines`，本插件也未限制 |
 
@@ -186,7 +197,7 @@ check-dsh-compat: OK — this plugin matches the installed DSH SDK
 | 技能 | 用途 |
 | --- | --- |
 | `using-superpowers` | 如何查找和使用技能；入口技能 |
-| `brainstorming` | 通过协作对话把想法变成设计 |
+| `brainstorming` | 动手前先问清「你到底想要什么、为什么」，理解后再定规模和做法 |
 | `writing-plans` | 根据规格编写全面的实施计划 |
 | `executing-plans` | 本会话内（Native/内联）执行计划，末尾一次整分支评审 |
 | `subagent-driven-development` | 每个任务派发全新子代理并评审 |
@@ -215,7 +226,10 @@ check-dsh-compat: OK — this plugin matches the installed DSH SDK
 - **零运行时依赖** —— 插件只使用 Node 内置模块，消费注入的 `ctx.skills`
   服务接口。
 
-## 上游同步（当前：obra/superpowers v6.4.2）
+## 上游同步
+
+当前同步的上游版本：**obra/superpowers v7.0.0**（见 `package.json` 的
+`dsh.superpowersUpstream`）。
 
 `skills/` 是**生成产物**，不要手改。同步逻辑写在两个地方，改它们再重跑即可：
 
@@ -228,7 +242,7 @@ check-dsh-compat: OK — this plugin matches the installed DSH SDK
 ```sh
 # 1. 取上游对应版本的源码（git 协议在部分网络不可用，走 codeload）
 mkdir -p .upstream/superpowers
-curl -L https://codeload.github.com/obra/superpowers/tar.gz/refs/tags/v6.4.2 \
+curl -L https://codeload.github.com/obra/superpowers/tar.gz/refs/tags/v7.0.0 \
   | tar -xz -C .upstream/superpowers --strip-components=1
 
 # 2. 重放同步
@@ -241,37 +255,34 @@ node scripts/verify-skills.mjs
 node scripts/check-dsh-compat.mjs
 ```
 
-本次同步带来的上游变更：
+本次同步带来的上游变更（**v7.0.0**，2026-10-10；技能数仍为 15 个）：
 
-- **新增技能 `diagnosing-superpowers`**（v6.4.1）：会话跑歪之后，定位并读取
-  磁盘上的 transcript，逐条给出 `path:line` 证据复盘；按需生成脱敏 bundle 或
-  GitHub issue 草稿。DSH 侧的 transcript 位置与解压方式已写进
-  `skills/diagnosing-superpowers/references/session-discovery.md` 和
-  `skills/using-superpowers/references/dsh-tools.md`。
-- **`executing-plans` 重写为 Native（内联）执行**（v6.4.1）：不再每三个任务
-  停一次让你确认；整个计划自己执行完，末尾只做**一次**整分支评审。共享
-  SDD 的 workspace 与 ledger，新增 `scripts/task-start` / `scripts/task-done`
-  两个辅助脚本。
-- **`writing-plans`**（v6.4.1 + v6.4.2）：计划存盘后必须先给你看过再执行；
-  新增 `Review Focus` 段（规格暗示但任务测试没覆盖的 5 类输入/失效模式）；
-  `No Placeholders` 换成 `What a Step Contains`（测试步给断言、代码步给签名
-  与文件、验证步给命令与通过输出），自审增加“篇幅比例”检查；删除
-  `plan-document-reviewer-prompt.md`。
-- **`brainstorming`**（v6.4.1）：先弄清“你为什么想要这个”，把你的意图复述
-  回去待纠正，并把审批绑定到实际的设计/计划阶段。
-- **代码评审**（v6.4.1）：规格没写的输入按“合理使用者会预期什么”判定，新增
-  “Declined to judge”清单由执行方逐条裁定；`BASE_SHA` 备用写法改为
-  `git merge-base origin/main HEAD`。
-- **`test-driven-development`**（v6.4.1）：绿的标准是**项目整套测试**，不只是
-  你写的那一个文件；跑项目测试命令并按名字上报每一个失败。
-- **`subagent-driven-development`**（v6.4.1）：workspace 记录归属计划，同名
-  计划不再互相覆盖；`review-package` 拒绝空区间或非后代区间（exit 3）。
-- **可执行位修复**（v6.4.1）：技能正文里的脚本改为经解释器调用
-  （`bash scripts/foo.sh`、`node render-graphs.js`），本 port 把
-  `task-start` / `task-done` 内部的脚本互相调用也一并补齐（Windows 没有
-  Unix 可执行位）。
+- **`brainstorming` 完全重写**（#2463 / #2482 / #2483）：先在第一条消息里说明
+  「可以跳过提问直接开工」，然后问一个开放式问题让你描述真实场景；边聊边把
+  理解**分块复述**回来（约 200–300 字）让你纠正；理解清楚后再用大白话
+  **定规模**（直接做 / 聊两句就动手 / 写设计文档），你可以否决；会主动确认
+  哪些「怎么做」的选择你想自己拿主意（平台、语言、库、媒介），你交出去它就
+  选合理默认值并说明。
+- **设计文档的评审换成 builder check**：**新增**
+  `skills/brainstorming/builder-check-prompt.md`，派一个全新子代理以「要动手
+  建它的人」的视角读设计、列出还需要问什么；**删除**
+  `skills/brainstorming/spec-document-reviewer-prompt.md`（旧 spec reviewer 被
+  取代）。问出来的问题只回一轮。
+- **`subagent-driven-development` 的 `scripts/sdd-workspace`**：不再每次覆盖
+  仓库自己的 `.superpowers/sdd/.gitignore`（只在文件不存在时写默认值）；
+  Windows/Git Bash 下计划标记保持**仓库相对路径**（原先会记成机器绝对路径）。
+- **`executing-plans` 的 `scripts/task-done`**：测试命令**静默通过**（无输出）
+  时现在也写 ledger，记为 `→ (no output)`；以前 `grep|tail` 返回非零会 exit 1，
+  让已完成的任务看起来没完成。
+- **`requesting-code-review`**：示例里的 base-SHA 命令改用 `cut -d' ' -f1`，
+  因为 Claude Code 会把技能正文里的 `$1` 替换成调用参数。
+- **`systematic-debugging`**：多层诊断示例不再把要检查的密钥**值**打进日志。
+- **视觉伴侣 `scripts/server.cjs`**：修掉 `String.replace` 把 `$'`、`$&` 当
+  替换模式的问题，现在按字面量插入内容。
+- 其余为 Antigravity / Hermes / Claude Code hooks 相关修复，DSH 没有 hook
+  系统，不适用本 port。
 
-## 移植说明（对比上游 obra/superpowers）
+## 移植说明
 
 - 去掉了命名空间前缀：`superpowers:brainstorming` → `brainstorming`
   （DSH 技能用裸名称寻址）。
@@ -292,6 +303,9 @@ node scripts/check-dsh-compat.mjs
   多 zstd frame 拼接，需按 frame 解压）。
 - `brainstorming` 的视觉伴侣补充了 Windows 说明：Node 服务
   （`scripts/server.cjs`）全平台可跑；`.sh` 辅助脚本仅限 bash。
+- `brainstorming` 在 v7.0.0 重写后，上游正文已直接写 `visual-companion.md`
+  这个裸相对名，所以本 port 原先那条「把 `skills/brainstorming/...` 改写成
+  裸相对名」的适配已删除（同步脚本里留有 NOTE，若上游将来回退再加回）。
 - `writing-skills/examples/CLAUDE_MD_TESTING.md` 原样保留（上游示例文档，
   里面仍是 Claude Code 路径），只为让 `testing-skills-with-subagents.md`
   的引用不断链。

@@ -1,0 +1,67 @@
+# 发布 superpowers-dsh 到 npm 官方仓库。
+#
+# 用 npm Trusted Publishing（GitHub OIDC）发布：不需要任何本地 NODE_AUTH_TOKEN，
+# 不依赖你这台机器的网络能不能连上 registry.npmjs.org，也没有 token 过期问题。
+#
+# 一次性配置（在 npm 网页上，用 zsqt 账号登录）：
+#   https://www.npmjs.com/package/superpowers-dsh/access
+#   → Trusted publishing → Add a publisher → GitHub
+#     Organization or user: LayneChai
+#     Repository:           superpowers-dsh
+#     Workflow filename:    publish.yml
+#     Environment:          (留空)
+#
+# 之后每次发布：
+#   1. 改 package.json 的 version（例如 0.2.0 → 0.2.1）
+#   2. git commit && git push
+#   3. git tag v0.2.1 && git push origin v0.2.1     ← 触发本 workflow
+#   4. 需要手动重跑时，在 Actions 页面 workflow_dispatch 即可
+#
+# 注意：tag 名 vX.Y.Z 必须与 package.json 里的 version 完全一致，否则下面
+# 的校验步骤会直接失败，避免把旧版本重复发出去。
+name: publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Trusted Publishing 需要较新的 npm（OIDC 交换由 CLI 自己完成）
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org/
+
+      - name: Use the newest npm
+        run: npm install -g npm@latest
+
+      - name: Tag must match package.json version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          node -e "
+            const pkg = require('./package.json');
+            const tag = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+            if (tag !== pkg.version) {
+              console.error('tag ' + tag + ' != package.json version ' + pkg.version);
+              process.exit(1);
+            }
+          "
+
+      - name: Verify skills and profile compatibility
+        run: |
+          node scripts/verify-skills.mjs
+          node scripts/check-dsh-compat.mjs
+
+      - name: Publish
+        run: npm publish --access public --provenance
