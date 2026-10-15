@@ -189,6 +189,11 @@ check-dsh-compat: OK — this plugin matches the installed DSH SDK
 `'custom'` 来源桶）→ 把 `lib/index.js` 真的挂进 `SkillRegistry` 并逐个读回 →
 比较 rank 关系。任一项不成立就 `exit 1`，并指出具体是哪条契约变了。
 
+在**没有安装 DSH 的机器**上（例如 CI、干净容器）没有可比对的对象，它会打印
+`SKIPPED` 并 `exit 0`——这是"没检查"，不是"检查失败"（发布流程因此不会被误拦）。
+显式传目录或以 `--require` 运行时，找不到 SDK 仍按错误处理。想强制要求先装 SDK：
+`DSH_COMPAT_REQUIRE=1 node scripts/check-dsh-compat.mjs`。
+
 > 结论以**验证时的 DSH 版本**为准。如果你跑的是更新的 DSH，先跑一遍上面的命令；
 > 上游一旦改动技能接口，它会立刻报出具体变化，而不是等到技能悄悄消失。
 

@@ -207,6 +207,12 @@ plugin implements (`registerProvider`, `SkillProvider.list/get`,
 `lib/index.js` really mounts into `SkillRegistry` and every skill reads back →
 the rank relationship. Any failure exits 1 and names the contract that changed.
 
+On a machine with **no DSH installed** (CI, a fresh container) there is nothing
+to compare against, so it prints `SKIPPED` and exits 0 — that is "unchecked",
+not "failed", so a publish pipeline is never blocked by a missing local DSH.
+Pass an explicit directory or `--require` to make a missing SDK an error, or set
+`DSH_COMPAT_REQUIRE=1 node scripts/check-dsh-compat.mjs`.
+
 > The conclusion holds for the DSH version it was verified against. On a newer
 > DSH, run the command above first: if upstream changes the skill interface it
 > names the exact break instead of letting skills disappear quietly.

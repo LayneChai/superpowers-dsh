@@ -33,9 +33,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const pkgRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 const dshHome = process.env.DSH_HOME || join(process.env.USERPROFILE ?? process.env.HOME ?? '', '.dsh')
-const modulesDir = resolve(
-  process.argv[2] ?? process.env.DSH_NODE_MODULES ?? join(dshHome, 'profiles', 'node_modules')
-)
+/** An explicit directory argument; `--require` and friends are flags, not paths. */
+const cliModulesDir = process.argv[2] !== undefined && !process.argv[2].startsWith('--') ? process.argv[2] : undefined
+const modulesDir = resolve(cliModulesDir ?? process.env.DSH_NODE_MODULES ?? join(dshHome, 'profiles', 'node_modules'))
 
 const problems = []
 const notes = []
@@ -61,11 +61,25 @@ async function entryOf(modules, name) {
 const skill = await entryOf(modulesDir, '@deepseek-ai/dsh-skill')
 const cordis = await entryOf(modulesDir, '@deepseek-ai/cordis')
 
+// A machine with no DSH installed (CI, a fresh container) is not a
+// compatibility failure: there is nothing to compare against. Say so and skip,
+// unless the caller demanded otherwise.
+const sdkRequired =
+  process.argv.includes('--require') || process.env.DSH_COMPAT_REQUIRE === '1' || cliModulesDir !== undefined
+
 if (!skill || !cordis) {
-  fail(
+  const message =
     `no DSH profile SDK at ${modulesDir}\n` +
-      '       pass the profile node_modules directory, or set $DSH_NODE_MODULES'
-  )
+    '       pass the profile node_modules directory, or set $DSH_NODE_MODULES'
+  if (sdkRequired) {
+    fail(message)
+  } else {
+    console.log('check-dsh-compat: SKIPPED — no DSH installation found on this machine')
+    console.log(`  looked in ${modulesDir}`)
+    console.log('  nothing to compare against, so the plugin is unchecked here (not failed).')
+    console.log('  pass a path or --require to make a missing SDK an error.')
+    process.exit(0)
+  }
 }
 
 let bundledRank
