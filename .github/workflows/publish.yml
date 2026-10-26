@@ -69,9 +69,16 @@ jobs:
           echo "npm: $(npm --version)  node: $(node --version)"
           echo "registry: $(npm config get registry)"
           echo "package: $(node -p "require('./package.json').name + '@' + require('./package.json').version")"
-          npm publish --access public --provenance --loglevel verbose 2>&1 | tee /tmp/publish.log
-          echo "--- publish exit: ${PIPESTATUS[0]} ---"
-          exit "${PIPESTATUS[0]}"
+          if npm publish --access public --provenance --loglevel verbose 2>&1 | tee /tmp/publish.log; then
+            echo "npm publish exited 0"
+          else
+            echo "npm publish exited non-zero; last lines:"
+            filter='s/^[ \t]*//; s/%/%25/g; s/\r/%0D/g; s/\n/%0A/g'
+            tail -n 40 /tmp/publish.log | sed "$filter" | while IFS= read -r line; do
+              echo "::error::npm-publish: $line"
+            done
+            exit 1
+          fi
 
       # A green "Publish" step that silently ships nothing is the failure mode
       # this run hit once. Ask the registry what actually landed instead of
