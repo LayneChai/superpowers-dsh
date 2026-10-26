@@ -69,13 +69,19 @@ jobs:
           echo "npm: $(npm --version)  node: $(node --version)"
           echo "registry: $(npm config get registry)"
           echo "package: $(node -p "require('./package.json').name + '@' + require('./package.json').version")"
-          if npm publish --access public --provenance --loglevel verbose 2>&1 | tee /tmp/publish.log; then
+          if npm publish --access public --provenance --loglevel verbose >/tmp/publish.log 2>&1; then
             echo "npm publish exited 0"
+            tail -n 25 /tmp/publish.log
           else
-            echo "npm publish exited non-zero; last lines:"
-            filter='s/^[ \t]*//; s/%/%25/g; s/\r/%0D/g; s/\n/%0A/g'
-            tail -n 40 /tmp/publish.log | sed "$filter" | while IFS= read -r line; do
-              echo "::error::npm-publish: $line"
+            echo "npm publish exited non-zero"
+            # Grab the diagnostic lines first: npm's own error block plus any
+            # HTTP status, then a tail of everything as a fallback.
+            grep -E 'npm (error|ERR)|E4[0-9][0-9]|ENEEDAUTH|EOTP|403|401|404|provenance|OIDC|otp' /tmp/publish.log \
+              | head -n 40 | cut -c1-300 | while IFS= read -r line; do
+                  echo "::error::npm-error: $line"
+                done
+            tail -n 25 /tmp/publish.log | cut -c1-300 | while IFS= read -r line; do
+              echo "::error::npm-tail: $line"
             done
             exit 1
           fi
