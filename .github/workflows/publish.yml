@@ -75,29 +75,31 @@ jobs:
           if npm publish --access public --provenance --loglevel verbose >/tmp/publish.log 2>&1; then
             echo "npm publish exited 0"
             tail -n 25 /tmp/publish.log
-          else
-            echo "npm publish exited non-zero"
-            # Grab the diagnostic lines first: npm's own error block plus any
-            # HTTP status, then a tail of everything as a fallback.
-            grep -E 'npm (error|ERR)|E4[0-9][0-9]|ENEEDAUTH|EOTP|403|401|404|provenance|OIDC|otp' /tmp/publish.log \
-              | head -n 40 | cut -c1-300 | while IFS= read -r line; do
-                  echo "::error::npm-error: $line"
-                done
-            tail -n 25 /tmp/publish.log | cut -c1-300 | while IFS= read -r line; do
-              echo "::error::npm-tail: $line"
-            done
-
-            # Re-pushing an existing tag must not paint the repo red if the
-            # version that tag names is already the one on the registry — that
-            # is the state the tag is asking for, already achieved. Any other
-            # failure stays a failure.
-            if grep -q 'cannot publish over the previously published versions' /tmp/publish.log \
-               && [ "$(npm view "$PKG@$V" version 2>/dev/null)" = "$V" ]; then
-              echo "::warning::$PKG@$V is already on the registry; nothing to publish"
-              exit 0
-            fi
-            exit 1
+            exit 0
           fi
+
+          echo "npm publish exited non-zero"
+
+          # Re-pushing an existing tag must not paint the repo red if the
+          # version that tag names is already the one on the registry — that is
+          # the state the tag is asking for, already achieved. Decide this
+          # before emitting diagnostics so a satisfied run carries no
+          # failure annotations.
+          if grep -q 'cannot publish over the previously published versions' /tmp/publish.log \
+             && [ "$(npm view "$PKG@$V" version 2>/dev/null)" = "$V" ]; then
+            echo "::warning::$PKG@$V is already on the registry; nothing to publish"
+            exit 0
+          fi
+
+          # Real failure: npm's own error block first, then a tail as fallback.
+          grep -E 'npm (error|ERR)|E4[0-9][0-9]|ENEEDAUTH|EOTP|403|401|404|provenance|OIDC|otp' /tmp/publish.log \
+            | head -n 40 | cut -c1-300 | while IFS= read -r line; do
+                echo "::error::npm-error: $line"
+              done
+          tail -n 25 /tmp/publish.log | cut -c1-300 | while IFS= read -r line; do
+            echo "::error::npm-tail: $line"
+          done
+          exit 1
 
       # Ask the registry what actually landed instead of trusting npm's exit
       # code: a green step that shipped nothing is the failure mode this
