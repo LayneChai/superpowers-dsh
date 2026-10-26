@@ -1,7 +1,7 @@
 {
   "name": "superpowers-dsh",
   "description": "Superpowers for the DeepSeek Harness: TDD, debugging, planning, and collaboration skills adapted from obra/superpowers",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": false,
   "type": "module",
   "main": "lib/index.js",
@@ -48,6 +48,6 @@
     "bundle": {
       "patch": "./cordis.patch.yml"
     },
-    "superpowersUpstream": "v7.0.0"
+    "superpowersUpstream": "v7.0.1"
   }
 }

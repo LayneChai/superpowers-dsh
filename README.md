@@ -37,7 +37,7 @@ agent preset 的作用域链都会合并这些技能。技能正文随包分发
 
 这是 DeepSeek Harness 的**插件包**。安装后会把下面的 15 个技能注册进
 host 技能注册表，你 profile 里的每个 agent 会话都能在技能目录中看到它们，
-并可用 `skill` 工具加载。技能内容同步自上游 **obra/superpowers v7.0.0**。
+并可用 `skill` 工具加载。技能内容同步自上游 **obra/superpowers v7.0.1**。
 
 ### 最简单：一条命令
 
@@ -144,7 +144,7 @@ dsh plugin --profile web remove superpowers-dsh
 | 已发布版本数 | 承载接口的两个包 `@deepseek-ai/dsh-skill` 与 `@deepseek-ai/dsh-app-boot` 各 **31 个已发布版本** |
 | 逐版本核对结果 | **31 / 31 全部一致**，从最早的 `0.0.1-rc.1` 到最新的 `0.2.1-alpha.1`，接口签名与语义均未变 |
 | 端到端实跑 | 把 `lib/index.js` 挂进本机 DSH `0.2.0-rc.2` 的**真实 `SkillRegistry`**：`list()` 返回 15 个技能，逐个 `get()` 都能取到正文与 `resourceBase` |
-| 插件自身版本 | `0.3.0`（技能内容同步自 obra/superpowers `v7.0.0`） |
+| 插件自身版本 | `0.4.0`（技能内容同步自 obra/superpowers `v7.0.1`） |
 | 运行时依赖 | 无。只用 Node 内置模块，不引入任何第三方依赖，因此不受 DSH 依赖树变化影响 |
 | Node.js | 本机验证 `v22.22.2`；DSH 自身未声明 `engines`，本插件也未限制 |
 
@@ -233,7 +233,7 @@ check-dsh-compat: OK — this plugin matches the installed DSH SDK
 
 ## 上游同步
 
-当前同步的上游版本：**obra/superpowers v7.0.0**（见 `package.json` 的
+当前同步的上游版本：**obra/superpowers v7.0.1**（见 `package.json` 的
 `dsh.superpowersUpstream`）。
 
 `skills/` 是**生成产物**，不要手改。同步逻辑写在两个地方，改它们再重跑即可：
@@ -247,7 +247,7 @@ check-dsh-compat: OK — this plugin matches the installed DSH SDK
 ```sh
 # 1. 取上游对应版本的源码（git 协议在部分网络不可用，走 codeload）
 mkdir -p .upstream/superpowers
-curl -L https://codeload.github.com/obra/superpowers/tar.gz/refs/tags/v7.0.0 \
+curl -L https://codeload.github.com/obra/superpowers/tar.gz/refs/tags/v7.0.1 \
   | tar -xz -C .upstream/superpowers --strip-components=1
 
 # 2. 重放同步
@@ -260,7 +260,47 @@ node scripts/verify-skills.mjs
 node scripts/check-dsh-compat.mjs
 ```
 
-本次同步带来的上游变更（**v7.0.0**，2026-10-10；技能数仍为 15 个）：
+本次同步带来的上游变更（**v7.0.1**，2026-10-21；技能数仍为 15 个，文件 68 → 78）：
+
+- **`brainstorming` 按反馈重新调音**（#2560 / #2571）：v7.0.0 那套「开场先问
+  要不要跳过提问，再问一个泛泛的『你什么时候最想要它』」被用户吐槽像模板，
+  v7.0.1 改掉了两件事 —— ①**先摸上下文再开口**：有项目、有 spec/plan/文件时，
+  第一句话之前先读它们，已经写在里面的不再问；②**问题接着你的答案走**：你说清
+  需求后，它先把你说的话连同项目里查到的东西**复述**一遍，只问那一个还没定的
+  点，后面的问题建立在你的回答和它的发现之上，并说明「这个答案会改变什么」。
+  「要不要跳过提问」现在**只在你没点名要 brainstorming 时才提供**；显式点名或
+  `/brainstorming` 调用时不再多问一遍。
+- **设计文档不再被跳过**：明确要求「先说两三种做法＋推荐一种让你挑，然后写设计
+  文档，你批准之前不动手」。上游实测：改之前 24/24 次跳过文档直接开工，改之后
+  3/24。
+- **三个长技能为「压缩后仍可存活」而拆分**（#2563 / #2564 / #2565，起因 #2481）：
+  Claude Code 在压缩后会把每个技能在 **20,000 字符处截断**，超出的部分整个会话
+  都不再存在 —— 有会话里 `subagent-driven-development` 因此丢了「最多 5 轮修复」
+  的限制，在一个任务上跑了 18 轮。
+  - `subagent-driven-development`：把修复循环、最终评审、报告处理、续跑、
+    preflight、分批、无法验证等内容移到 **`references/`**（7 个新文件），用到哪
+    一步再读哪个文件。**SKILL.md 32,510 → 19,470 字节。**
+  - `writing-skills`：把支撑文档、SKILL.md 模板与发现机制、bulletproofing、
+    flowchart 约定移到 `references/`（新增 `discovery.md`、`bulletproofing.md`、
+    `flowcharts.md`，其余是原文件重命名进 `references/`）。
+    **26,615 → 16,754 字节。**
+  - `executing-plans`：删掉与上文规则重复的 Example Workflow。
+    **20,454 → 18,164 字节。**
+  - 上游同时加了 `tests/skill-size/test-skill-size.sh`，任何 `SKILL.md` 达到
+    20,000 字节即失败。本 port 现在 15 个 SKILL.md **全部低于 20,000 字节**
+    （最大的是 `subagent-driven-development` 19,470）。
+- **与 DSH 无关的部分**：issue / PR 模板改为要求「谁提的、你的人类伙伴原本要什么、
+  200 字以内由人写的摘要」（#2569），`diagnosing-superpowers` 跟着加这两节并改用
+  Bug Report 模板，`docs/superpowers/plans/` 下 18 份历史计划文档被删除。这些都在
+  `skills/` 之外，不进本 port 的产物。
+
+> **给 DSH 的适配**：v7.0.1 把 `writing-skills/references/CLAUDE_MD_TESTING.md`
+> 重命名进了 `references/`，这个文件也随之进入发布产物。它整篇是拿来测「技能文档
+> 怎么写才容易被发现」的场景稿，里面 14 处让 agent 去 `~/.claude/skills/` 找技能 ——
+> 在 DSH 上那个目录不存在，场景就测不出东西。同步脚本因此新增一条 `sweep` 改写，
+> 把它统一换成 `$DSH_HOME/skills/`。
+
+上一版（**v7.0.0**，2026-10-10）的上游变更，保留备查：
 
 - **`brainstorming` 完全重写**（#2463 / #2482 / #2483）：先在第一条消息里说明
   「可以跳过提问直接开工」，然后问一个开放式问题让你描述真实场景；边聊边把
@@ -311,9 +351,12 @@ node scripts/check-dsh-compat.mjs
 - `brainstorming` 在 v7.0.0 重写后，上游正文已直接写 `visual-companion.md`
   这个裸相对名，所以本 port 原先那条「把 `skills/brainstorming/...` 改写成
   裸相对名」的适配已删除（同步脚本里留有 NOTE，若上游将来回退再加回）。
-- `writing-skills/examples/CLAUDE_MD_TESTING.md` 原样保留（上游示例文档，
-  里面仍是 Claude Code 路径），只为让 `testing-skills-with-subagents.md`
-  的引用不断链。
+- `writing-skills/references/CLAUDE_MD_TESTING.md` 随 v7.0.1 的重命名进入发布
+  产物（原先在 `examples/` 下，上游一直没把它当正文看）。它整篇是「技能文档
+  怎么写才容易被 agent 发现」的测试场景稿，所以保留；但里面 14 处让 agent 去
+  `~/.claude/skills/` 找技能，在 DSH 上那个目录不存在、场景就测不出东西，
+  因此同步脚本用一条 `sweep` 改写统一换成 `$DSH_HOME/skills/`。同一文件里
+  `~/.claude/CLAUDE.md` 这类**历史出处**描述不改（那是事实记录，不是指令）。
 
 ## 添加自己的技能
 

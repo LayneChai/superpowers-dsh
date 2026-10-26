@@ -198,11 +198,23 @@ const TRANSFORMS = [
       '`.agents/skills/` roots, or — for packaged skills — the `skills/` directory inside a plugin bundle like this ' +
       'one. See [dsh-tools.md](../using-superpowers/references/dsh-tools.md) for the full mechanism.'
   },
+  // NOTE: up to v7.0.0 `subagent-driven-development/SKILL.md` carried a hook
+  // dialogue naming `~/.config/superpowers/hooks/`, which this port rewrote to
+  // the DSH home. v7.0.1 removed that example when it moved its long sections
+  // into `references/`, so the transform is gone rather than retargeted. Re-add
+  // it (and a `references/…` file anchor) if a future release brings a
+  // superpowers-specific path back into that skill.
   {
-    name: 'subagent-driven-development: hook example uses the DSH home',
-    file: 'subagent-driven-development/SKILL.md',
-    find: 'You: "User level (~/.config/superpowers/hooks/)"',
-    replace: 'You: "Install the hook at the user level (' + DSH_HOME + ')"'
+    // v7.0.1 moved this doc out of the skill root into `references/`, which made
+    // it part of the shipped tree. Its scenario fixtures all tell the agent to
+    // look in Claude Code's personal skills directory; on DSH that path is wrong,
+    // and the fixture is useless if the agent probes a directory that is not
+    // there. Every occurrence is the same phrase, hence `sweep`.
+    name: 'writing-skills: test scenarios probe the DSH skills directory',
+    file: 'writing-skills/references/CLAUDE_MD_TESTING.md',
+    find: '~/.claude/skills/',
+    replace: DSH_HOME + '/skills/',
+    sweep: true
   },
   {
     name: 'diagnosing-superpowers: case workspace lives under the DSH home',
@@ -285,8 +297,11 @@ function applyTransforms(rel, text, applied) {
     if (t.find === t.replace) continue
     const count = text.split(t.find).length - 1
     if (count === 0) fail(`anchor missing in ${rel} for "${t.name}"\n  find: ${JSON.stringify(t.find.slice(0, 120))}`)
-    if (count > 1) fail(`anchor matched ${count} times in ${rel} for "${t.name}"`)
-    text = text.replace(t.find, t.replace)
+    // `sweep` transforms rewrite every occurrence of a phrase that legitimately
+    // repeats (prompt fixtures, variant docs); the rest must match exactly once
+    // so a moved anchor is caught rather than silently half-rewritten.
+    if (count > 1 && !t.sweep) fail(`anchor matched ${count} times in ${rel} for "${t.name}"`)
+    text = t.sweep ? text.replaceAll(t.find, t.replace) : text.replace(t.find, t.replace)
     applied.add(t.name)
   }
   return text

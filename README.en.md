@@ -39,7 +39,7 @@ user configuration.
 A **plugin bundle** for DeepSeek Harness (DSH). Installing it registers the
 15 skills below into the host skill registry, so every agent session in your
 profile sees them in its skill catalog and can load them with the `skill`
-tool. Skill content is synced from upstream **obra/superpowers v7.0.0**.
+tool. Skill content is synced from upstream **obra/superpowers v7.0.1**.
 
 ### Simplest: one command
 
@@ -156,7 +156,7 @@ Checked 2026-10-03. npm dist-tags: `latest` = `next` = `0.2.0-rc.2`,
 | Published versions carrying them | **31 released versions each** of `@deepseek-ai/dsh-skill` and `@deepseek-ai/dsh-app-boot` |
 | Per-version audit | **31 / 31 identical** — from the first release `0.0.1-rc.1` through the newest `0.2.1-alpha.1`, no signature or semantics changed |
 | End-to-end run | `lib/index.js` mounted into the **real `SkillRegistry`** of local DSH `0.2.0-rc.2`: `list()` returned 15 skills and every `get()` returned a body and a `resourceBase` |
-| This plugin's version | `0.3.0` (skill content synced from obra/superpowers `v7.0.0`) |
+| This plugin's version | `0.4.0` (skill content synced from obra/superpowers `v7.0.1`) |
 | Runtime dependencies | None. Node built-ins only, so a DSH dependency-tree change cannot break it |
 | Node.js | Verified on `v22.22.2`; DSH declares no `engines`, and neither does this plugin |
 
@@ -256,7 +256,7 @@ Pass an explicit directory or `--require` to make a missing SDK an error, or set
 
 ## Upstream sync
 
-Currently synced upstream version: **obra/superpowers v7.0.0** (recorded in
+Currently synced upstream version: **obra/superpowers v7.0.1** (recorded in
 `package.json` as `dsh.superpowersUpstream`).
 
 `skills/` is **generated output** — do not hand-edit it. The sync lives in two
@@ -273,7 +273,7 @@ places; change those and re-run:
 # 1. Fetch the upstream release (git-over-https is blocked on some networks;
 #    codeload works)
 mkdir -p .upstream/superpowers
-curl -L https://codeload.github.com/obra/superpowers/tar.gz/refs/tags/v7.0.0 \
+curl -L https://codeload.github.com/obra/superpowers/tar.gz/refs/tags/v7.0.1 \
   | tar -xz -C .upstream/superpowers --strip-components=1
 
 # 2. Replay the sync
@@ -287,8 +287,57 @@ node scripts/verify-skills.mjs
 node scripts/check-dsh-compat.mjs
 ```
 
-What this sync brought in from upstream (**v7.0.0**, 2026-10-10; still 15
-skills):
+What this sync brought in from upstream (**v7.0.1**, 2026-10-21; still 15
+skills, 68 → 78 files):
+
+- **`brainstorming` retuned after feedback** (#2560 / #2571): v7.0.0's opening —
+  offer to skip the questions, then ask a generic "the moment you wished this
+  existed" — felt formulaic fast, so two things changed. ① **It digs for context
+  before it asks anything**: pointed at an existing project, a spec, a plan, or
+  files, it reads them before its first message and does not ask what they
+  already answer. ② **Its questions build on your answers**: once you've said
+  what you want, it plays your request back with what it found in the project
+  and asks about the one thing still open; later questions build on your answers
+  and say what the answer would change. The skip offer now appears **only when
+  it started on its own** — invoking brainstorming by name or `/brainstorming`
+  no longer offers to skip.
+- **The design doc can no longer be skipped**: it presents two or three ways to
+  build the thing, recommends one for you to pick, writes the design doc, and
+  builds nothing until you approve it. Upstream measured 24 of 24 runs skipping
+  the doc without asking before this change, 3 of 24 after.
+- **Three long skills were split so they survive compaction** (#2563 / #2564 /
+  #2565, from #2481): after a compaction Claude Code re-attaches each skill cut
+  off at **20,000 characters**, so anything past that point is gone for the rest
+  of the session — one reported session lost `subagent-driven-development`'s
+  five-round fix limit and ran 18 fix rounds on a single task.
+  - `subagent-driven-development`: the fix loop, final review, report handling,
+    resuming, preflight, batching, and cannot-verify guidance move into
+    **`references/`** (7 new files) and are read from disk at the step that needs
+    them. **SKILL.md 32,510 → 19,470 bytes.**
+  - `writing-skills`: supporting docs, the SKILL.md template and discovery
+    guidance, bulletproofing, and flowchart conventions move into `references/`
+    (new `discovery.md`, `bulletproofing.md`, `flowcharts.md`; the rest are
+    existing files renamed into `references/`). **26,615 → 16,754 bytes.**
+  - `executing-plans`: drops its Example Workflow, which repeated rules stated
+    above it. **20,454 → 18,164 bytes.**
+  - Upstream also added `tests/skill-size/test-skill-size.sh`, which fails when
+    any `SKILL.md` reaches 20,000 bytes. All 15 `SKILL.md` files in this port are
+    now **under 20,000 bytes** (the largest is `subagent-driven-development` at
+    19,470).
+- **Not applicable to DSH**: the issue and PR templates now require who filed,
+  what the human partner asked for, and a human-written summary under 200 words
+  (#2569); `diagnosing-superpowers` adds those two sections and switches to the
+  Bug Report template; 18 historical plan docs under `docs/superpowers/plans/`
+  were deleted. All of it lives outside `skills/` and never reaches this port.
+
+> **DSH adaptation**: v7.0.1 renamed `writing-skills/references/CLAUDE_MD_TESTING.md`
+> into `references/`, which brought it into the shipped tree. The whole file is
+> scenario fixtures for testing how skill docs get discovered, and 14 of its
+> lines send the agent to `~/.claude/skills/` — a directory that does not exist
+> on DSH, so the fixtures would test nothing. The sync script gained a `sweep`
+> transform that rewrites them all to `$DSH_HOME/skills/`.
+
+The previous release (**v7.0.0**, 2026-10-10), kept for reference:
 
 - **`brainstorming` was rebuilt from scratch** (#2463 / #2482 / #2483): the
   first message offers to skip the questions, then asks one open question about
@@ -344,9 +393,15 @@ skills):
   `visual-companion.md`, so this port's old rewrite of
   `skills/brainstorming/visual-companion.md` is gone (the sync script carries a
   NOTE; re-add it if a future release regresses to the path form).
-- `writing-skills/examples/CLAUDE_MD_TESTING.md` ships verbatim (an upstream
-  example document that still uses Claude Code paths), so the reference from
-  `testing-skills-with-subagents.md` does not dangle.
+- `writing-skills/references/CLAUDE_MD_TESTING.md` entered the shipped tree with
+  v7.0.1's rename (it used to sit under `examples/`, which upstream never treated
+  as shipped content). It is kept because it is the scenario suite for "how do
+  you write skill docs so agents actually find them" — but 14 of its lines send
+  the agent to `~/.claude/skills/`, a directory that does not exist on DSH, so
+  the fixtures would test nothing. The sync script therefore rewrites them all to
+  `$DSH_HOME/skills/` with one `sweep` transform. Provenance lines in the same
+  file that describe where a framework was extracted *from* (`~/.claude/CLAUDE.md`)
+  are left alone: those are history, not instructions.
 
 ## Adding your own skills
 
