@@ -64,4 +64,30 @@ jobs:
           node scripts/check-dsh-compat.mjs
 
       - name: Publish
-        run: npm publish --access public --provenance
+        run: |
+          set -o pipefail
+          echo "npm: $(npm --version)  node: $(node --version)"
+          echo "registry: $(npm config get registry)"
+          echo "package: $(node -p "require('./package.json').name + '@' + require('./package.json').version")"
+          npm publish --access public --provenance --loglevel verbose 2>&1 | tee /tmp/publish.log
+          echo "--- publish exit: ${PIPESTATUS[0]} ---"
+          exit "${PIPESTATUS[0]}"
+
+      # A green "Publish" step that silently ships nothing is the failure mode
+      # this run hit once. Ask the registry what actually landed instead of
+      # trusting npm's exit code.
+      - name: Confirm the version is on the registry
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          echo "checking registry for superpowers-dsh@$V"
+          for i in 1 2 3 4 5 6; do
+            if npm view "superpowers-dsh@$V" version >/dev/null 2>&1; then
+              echo "OK: superpowers-dsh@$V is published"
+              exit 0
+            fi
+            echo "not visible yet (attempt $i), waiting 10s"
+            sleep 10
+          done
+          echo "::error::npm publish reported success but superpowers-dsh@$V is not on the registry"
+          exit 1
