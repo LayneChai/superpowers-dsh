@@ -122,7 +122,7 @@ jobs:
             echo "not visible yet (attempt $i/12), waiting 15s"
             sleep 15
           done
-          echo "::warning::$PKG@$V is not visible on the registry yet; npm publish \
-exited 0, so it was accepted — CDN propagation is the likely cause. Verify with \
-\`npm view $PKG@$V version\` before assuming the release failed."
+          echo "::warning::not visible on the registry yet: $PKG@$V"
+          echo "::warning::npm publish exited 0, so the registry accepted it -- CDN propagation is the likely cause."
+          echo "::warning::verify with: npm view $PKG@$V version (before assuming the release failed)"
           exit 0
