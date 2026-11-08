@@ -39,7 +39,7 @@ user configuration.
 A **plugin bundle** for DeepSeek Harness (DSH). Installing it registers the
 15 skills below into the host skill registry, so every agent session in your
 profile sees them in its skill catalog and can load them with the `skill`
-tool. Skill content is synced from upstream **obra/superpowers v7.0.1**.
+tool. Skill content is synced from upstream **obra/superpowers v7.0.2**.
 
 ### Simplest: one command
 
@@ -156,7 +156,7 @@ Checked 2026-10-03. npm dist-tags: `latest` = `next` = `0.2.0-rc.2`,
 | Published versions carrying them | **31 released versions each** of `@deepseek-ai/dsh-skill` and `@deepseek-ai/dsh-app-boot` |
 | Per-version audit | **31 / 31 identical** — from the first release `0.0.1-rc.1` through the newest `0.2.1-alpha.1`, no signature or semantics changed |
 | End-to-end run | `lib/index.js` mounted into the **real `SkillRegistry`** of local DSH `0.2.0-rc.2`: `list()` returned 15 skills and every `get()` returned a body and a `resourceBase` |
-| This plugin's version | `0.4.0` (skill content synced from obra/superpowers `v7.0.1`) |
+| This plugin's version | `0.5.0` (skill content synced from obra/superpowers `v7.0.2`) |
 | Runtime dependencies | None. Node built-ins only, so a DSH dependency-tree change cannot break it |
 | Node.js | Verified on `v22.22.2`; DSH declares no `engines`, and neither does this plugin |
 
@@ -256,7 +256,7 @@ Pass an explicit directory or `--require` to make a missing SDK an error, or set
 
 ## Upstream sync
 
-Currently synced upstream version: **obra/superpowers v7.0.1** (recorded in
+Currently synced upstream version: **obra/superpowers v7.0.2** (recorded in
 `package.json` as `dsh.superpowersUpstream`).
 
 `skills/` is **generated output** — do not hand-edit it. The sync lives in two
@@ -273,7 +273,7 @@ places; change those and re-run:
 # 1. Fetch the upstream release (git-over-https is blocked on some networks;
 #    codeload works)
 mkdir -p .upstream/superpowers
-curl -L https://codeload.github.com/obra/superpowers/tar.gz/refs/tags/v7.0.1 \
+curl -L https://codeload.github.com/obra/superpowers/tar.gz/refs/tags/v7.0.2 \
   | tar -xz -C .upstream/superpowers --strip-components=1
 
 # 2. Replay the sync
@@ -287,8 +287,79 @@ node scripts/verify-skills.mjs
 node scripts/check-dsh-compat.mjs
 ```
 
-What this sync brought in from upstream (**v7.0.1**, 2026-10-21; still 15
-skills, 68 → 78 files):
+What this sync brought in from upstream (**v7.0.2**, 2026-11-03; still 15
+skills, 78 → 74 files):
+
+- **`brainstorming`, third pass — fewer questions** (#2644): it now asks a
+  question **only when the answer would change what gets built and nothing
+  already answers it**; otherwise it states its own call as a proposal you can
+  correct. It also stopped asking about process — writing things up, where files
+  go, whether to look further, how to show you something are its own calls, and
+  it tells you what it decided.
+- **If you haven't said why you want it, that is the first thing it asks**,
+  openly, with no example answers to pick from.
+- **When there is a named choice it lays out the options with a recommendation.**
+  In one test scenario a spec gave Ctrl+K to two features: v7.0.1 found the
+  conflict every time but asked a bare "which one?" in 8 of 8 runs; v7.0.2 laid
+  out the options and recommended one in 8 of 8.
+- **It reads from how you talk whether you want to discuss technical choices**,
+  and when your request leaves nothing open its first message is a short design
+  for you to approve.
+- Upstream's blind-graded numbers: filler questions fell from 41 to 23; the
+  reason behind the request came out before any approach in 33 of 33
+  conversations (28 of 33 before); nothing got built before approval (4
+  violations before).
+- **`start-server.sh --project-dir .` now works** (#2524 / #2608): the script
+  `cd`s into its own directory before starting, so every path derived from a
+  relative `--project-dir` pointed at the wrong place and the server never
+  started. It resolves the directory to an absolute path first.
+
+- **The five SDD / executing-plans helpers changed a lot — the part of this
+  release that matters most on DSH** (#2429 / #2242 / #1799 / #2606 / #2525 /
+  #2607):
+  - **New `scripts/sdd-repo`** (54 lines): it resolves the repository of the
+    current directory, the way `git` does, and takes `-C DIR` to point elsewhere.
+    Outside a repository, `sdd-workspace` used to write its workspace into
+    whatever directory the agent was in — often the plugin cache.
+  - All five helpers now **exit 2 with advice when not in a repository**; a
+    brand-new project needs `git init` and a first commit before they work.
+  - **The skills now say to call the helpers by absolute path, from the working
+    tree you're executing in** (they used to say "from this skill's directory",
+    and agents that `cd`'d there ran the helpers against the plugin's own files).
+    Upstream added a test that fails if a skill names a helper by a relative path.
+  - **`task-brief` understands task IDs like `A1`, `6b`, and `2.1`** (it used to
+    reject letter-first IDs entirely, and asking for Task 6 also picked up Task
+    6b); when a plan's headings aren't in English it says they must use the word
+    "Task" and shows the headings it found.
+  - **`task-brief` refuses a brief that an unclosed code fence ran to the end of
+    the plan**: one missing closing fence hid every later task heading, and a
+    reporter's 177-line task came back as a 1,159-line brief holding five tasks.
+  - **On Windows the helpers print paths PowerShell can open** (`C:/Users/…`
+    rather than `/c/Users/…`, via `cygpath -m`).
+- **`systematic-debugging` no longer installs its own test scenarios** (#2277 /
+  #2654): `CREATION-LOG.md` and four "This is a real scenario. You must choose
+  and act" pressure prompts sat next to `SKILL.md` and could be found by an agent
+  mid-task. They now live under `tests/`, with a test keeping such files out of
+  every skill directory. **This port therefore ships 5 files fewer.**
+- **Not applicable to DSH**: the hooks work (Copilot on Windows, Git Bash child
+  processes, the zsh fallback) and the Pi / Hermes / OpenCode / Muse bootstrap
+  fixes all live outside `skills/`, and DSH has no hook system.
+
+> **DSH adaptation**: v7.0.2 replaced the helpers' calling semantics (repository
+> of the current directory, absolute paths, `-C DIR`), which matters more on DSH
+> than elsewhere — a plugin's skills live inside the plugin installation, not in
+> your project, and `cd`-ing into the plugin directory to run them is exactly the
+> trap upstream closed here. `dsh-tools.md` gained a section on it: resolve the
+> absolute path from the skill's own directory (the `resourceBase` the `skill`
+> tool returns), run with the project as the working directory or pass `-C`, and
+> `git init` first in an empty repository; plus the note that `bash` on Windows
+> means Git for Windows. The four helper invocations in executing-plans also got
+> a `bash` prefix (Windows has no Unix executable bit), and those transforms are
+> now anchored on the backticked command alone rather than the prose around it —
+> upstream rewords that prose every release, and a prose-bearing anchor breaks
+> with it.
+
+The previous release (**v7.0.1**, 2026-10-21), kept for reference:
 
 - **`brainstorming` retuned after feedback** (#2560 / #2571): v7.0.0's opening —
   offer to skip the questions, then ask a generic "the moment you wished this
@@ -322,8 +393,8 @@ skills, 68 → 78 files):
     above it. **20,454 → 18,164 bytes.**
   - Upstream also added `tests/skill-size/test-skill-size.sh`, which fails when
     any `SKILL.md` reaches 20,000 bytes. All 15 `SKILL.md` files in this port are
-    now **under 20,000 bytes** (the largest is `subagent-driven-development` at
-    19,470).
+    now **under 20,000 bytes** (the largest is `subagent-driven-development`, at
+    19,704 after v7.0.2).
 - **Not applicable to DSH**: the issue and PR templates now require who filed,
   what the human partner asked for, and a human-written summary under 200 words
   (#2569); `diagnosing-superpowers` adds those two sections and switches to the

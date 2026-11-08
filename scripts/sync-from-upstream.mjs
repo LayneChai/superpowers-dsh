@@ -153,6 +153,12 @@ const TRANSFORMS = [
       '  must stay in one context. Never fabricate a dispatch.'
     ].join('\n')
   },
+  // Helper invocations are anchored on the backticked command only, never the
+  // prose around it: upstream rewords that prose every release (v7.0.2 turned
+  // "from this skill's directory" into "by its absolute path, from the working
+  // tree you're executing in", which broke a prose-bearing anchor). DSH needs
+  // the `bash` prefix because Windows has no Unix executable bit, and because
+  // package extractors strip it even on POSIX.
   {
     name: 'executing-plans: invoke sdd-workspace through bash',
     file: 'executing-plans/SKILL.md',
@@ -162,20 +168,20 @@ const TRANSFORMS = [
   {
     name: 'executing-plans: invoke task-start through bash',
     file: 'executing-plans/SKILL.md',
-    find: "Run this skill's `scripts/task-start PLAN_FILE N`.",
-    replace: "Run this skill's `bash scripts/task-start PLAN_FILE N`."
+    find: '`scripts/task-start PLAN_FILE N`',
+    replace: '`bash scripts/task-start PLAN_FILE N`'
   },
   {
     name: 'executing-plans: invoke task-done through bash',
     file: 'executing-plans/SKILL.md',
-    find: 'Run this skill\'s `scripts/task-done PLAN_FILE N BASE -- <test command>`',
-    replace: 'Run this skill\'s `bash scripts/task-done PLAN_FILE N BASE -- <test command>`'
+    find: '`scripts/task-done PLAN_FILE N BASE -- <test command>`',
+    replace: '`bash scripts/task-done PLAN_FILE N BASE -- <test command>`'
   },
   {
     name: 'executing-plans: invoke review-package through bash',
     file: 'executing-plans/SKILL.md',
-    find: 'Run `../subagent-driven-development/scripts/review-package PLAN_FILE MERGE_BASE HEAD`',
-    replace: 'Run `bash ../subagent-driven-development/scripts/review-package PLAN_FILE MERGE_BASE HEAD`'
+    find: '`../subagent-driven-development/scripts/review-package PLAN_FILE MERGE_BASE HEAD`',
+    replace: '`bash ../subagent-driven-development/scripts/review-package PLAN_FILE MERGE_BASE HEAD`'
   },
   {
     name: 'executing-plans: task-start calls task-brief through bash',

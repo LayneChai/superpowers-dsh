@@ -37,7 +37,7 @@ agent preset 的作用域链都会合并这些技能。技能正文随包分发
 
 这是 DeepSeek Harness 的**插件包**。安装后会把下面的 15 个技能注册进
 host 技能注册表，你 profile 里的每个 agent 会话都能在技能目录中看到它们，
-并可用 `skill` 工具加载。技能内容同步自上游 **obra/superpowers v7.0.1**。
+并可用 `skill` 工具加载。技能内容同步自上游 **obra/superpowers v7.0.2**。
 
 ### 最简单：一条命令
 
@@ -144,7 +144,7 @@ dsh plugin --profile web remove superpowers-dsh
 | 已发布版本数 | 承载接口的两个包 `@deepseek-ai/dsh-skill` 与 `@deepseek-ai/dsh-app-boot` 各 **31 个已发布版本** |
 | 逐版本核对结果 | **31 / 31 全部一致**，从最早的 `0.0.1-rc.1` 到最新的 `0.2.1-alpha.1`，接口签名与语义均未变 |
 | 端到端实跑 | 把 `lib/index.js` 挂进本机 DSH `0.2.0-rc.2` 的**真实 `SkillRegistry`**：`list()` 返回 15 个技能，逐个 `get()` 都能取到正文与 `resourceBase` |
-| 插件自身版本 | `0.4.0`（技能内容同步自 obra/superpowers `v7.0.1`） |
+| 插件自身版本 | `0.5.0`（技能内容同步自 obra/superpowers `v7.0.2`） |
 | 运行时依赖 | 无。只用 Node 内置模块，不引入任何第三方依赖，因此不受 DSH 依赖树变化影响 |
 | Node.js | 本机验证 `v22.22.2`；DSH 自身未声明 `engines`，本插件也未限制 |
 
@@ -233,7 +233,7 @@ check-dsh-compat: OK — this plugin matches the installed DSH SDK
 
 ## 上游同步
 
-当前同步的上游版本：**obra/superpowers v7.0.1**（见 `package.json` 的
+当前同步的上游版本：**obra/superpowers v7.0.2**（见 `package.json` 的
 `dsh.superpowersUpstream`）。
 
 `skills/` 是**生成产物**，不要手改。同步逻辑写在两个地方，改它们再重跑即可：
@@ -247,7 +247,7 @@ check-dsh-compat: OK — this plugin matches the installed DSH SDK
 ```sh
 # 1. 取上游对应版本的源码（git 协议在部分网络不可用，走 codeload）
 mkdir -p .upstream/superpowers
-curl -L https://codeload.github.com/obra/superpowers/tar.gz/refs/tags/v7.0.1 \
+curl -L https://codeload.github.com/obra/superpowers/tar.gz/refs/tags/v7.0.2 \
   | tar -xz -C .upstream/superpowers --strip-components=1
 
 # 2. 重放同步
@@ -260,7 +260,59 @@ node scripts/verify-skills.mjs
 node scripts/check-dsh-compat.mjs
 ```
 
-本次同步带来的上游变更（**v7.0.1**，2026-10-21；技能数仍为 15 个，文件 68 → 78）：
+本次同步带来的上游变更（**v7.0.2**，2026-11-03；技能数仍为 15 个，文件 78 → 74）：
+
+- **`brainstorming` 第三次调音——问得更少**（#2644）：现在的规则是「**只有当答案
+  会改变要做什么、而现有信息又答不了时**才提问」；否则直接把它自己的判断作为
+  「可纠正的提议」讲出来。它也不再问你流程问题（怎么写文档、文件放哪、要不要再看
+  点别的、怎么给你看），这些它自己定并告诉你结果。
+- **没说你为什么想要，它就第一个问这个**：开放问法，不给可选项。
+- **有明确取舍时给选项＋推荐**：某个测试场景里 spec 把 Ctrl+K 给了两个功能，
+  v7.0.1 每次都发现了冲突，但 8/8 次只问了句「要哪个？」；v7.0.2 在 8/8 次里都
+  把选项摆出来并推荐一个。
+- **从你的说话方式判断你想不想聊技术选型**；请求本身没有留下开放问题时，它的
+  第一条消息就是一份简短设计供你批准。
+- 上游盲测数据：无意义提问从 v7.0.1 的 41 个降到 23 个；「理由先于方案」在 33/33
+  次对话中成立（改前 28/33）；批准前不动手也做到了（改前有 4 次违规）。
+- **`start-server.sh --project-dir .` 修好了**（#2524 / #2608）：脚本会先 `cd` 进
+  自己目录再启动服务，导致所有从相对 `--project-dir` 推导出的路径都指错、服务根本
+  起不来。现在先把该目录解析成绝对路径。
+
+- **SDD / executing-plans 的五个辅助脚本大改——这是本版对 DSH 影响最大的部分**
+  （#2429 / #2242 / #1799 / #2606 / #2525 / #2607）：
+  - 新增 **`scripts/sdd-repo`**（54 行）：像 `git` 一样，**以当前目录所在仓库为准**，
+    并支持 `-C DIR` 指定别的仓库。以前在仓库外跑 `sdd-workspace` 会把 workspace
+    写进 agent 当时所在的任意目录（经常是插件缓存目录）。
+  - 五个 helper 现在**不在仓库里就 `exit 2` 并说明该怎么办**；全新项目要先
+    `git init` 并做首次提交才能开工。
+  - **技能正文改为「按绝对路径、从你正在执行的工作树调用 helper」**（以前说
+    「从本技能目录」，agent 一 `cd` 过去就把 helper 跑在插件自己的文件上了）。
+    上游还加了测试：技能里用相对路径指 helper 就失败。
+  - **`task-brief` 认得 `A1`、`6b`、`2.1` 这类任务 ID**（以前凡字母开头一律拒绝，
+    而且取 Task 6 会把 Task 6b 一起带上）；计划的标题不用英文时，它会明确要求
+    用「Task」这个词并列出它找到的标题。
+  - **`task-brief` 拒绝被未闭合代码块吞掉的 brief**：漏一个结束围栏会隐藏后面
+    所有任务标题，有人的 177 行任务因此变成含五个任务的 1,159 行 brief。
+  - **Windows 上 helper 打印 PowerShell 能直接打开的路径**（`C:/Users/…` 而不是
+    `/c/Users/…`，经 `cygpath -m`）。
+- **`systematic-debugging` 不再自带测试场景**（#2277 / #2654）：`CREATION-LOG.md`
+  和四个「这是一个真实场景，你必须选择并行动」的压力测试提示词原本装在 `SKILL.md`
+  旁边，agent 干活干到一半可能翻到它们。现在移到 `tests/` 下，并加了测试防止这
+  类文件再混进任何技能目录。**本 port 因此少了这 5 个文件。**
+- **与 DSH 无关的部分**：hooks（Copilot on Windows / Git Bash 子进程 / zsh 回退）、
+  Pi / Hermes / OpenCode / Muse 的 bootstrap 修复都在 `skills/` 之外，DSH 也没有
+  hook 系统。
+
+> **给 DSH 的适配**：v7.0.2 把 helper 的调用语义整个换了（当前目录的仓库、绝对
+> 路径、`-C DIR`），这在 DSH 上尤其要紧 —— 插件的技能装在插件安装目录里，不在你
+> 的项目里，`cd` 进插件目录再跑 helper 正是上游这次要堵的坑。`dsh-tools.md` 补了
+> 这一节：从技能自己的目录（`skill` 工具返回的 `resourceBase`）拼出绝对路径、
+> 用项目当工作目录或传 `-C`、空仓库要先 `git init`；并说明 Windows 上 `bash`
+> 指的是 Git for Windows。另外把 executing-plans 正文里 4 处 helper 调用统一加
+> `bash` 前缀（Windows 没有 Unix 可执行位），锚点也收窄成只匹配反引号内的命令本身
+> —— 上游每版都在改这段措辞，绑正文会一版一断。
+
+上一版（**v7.0.1**，2026-10-21）的上游变更，保留备查：
 
 - **`brainstorming` 按反馈重新调音**（#2560 / #2571）：v7.0.0 那套「开场先问
   要不要跳过提问，再问一个泛泛的『你什么时候最想要它』」被用户吐槽像模板，
@@ -288,7 +340,7 @@ node scripts/check-dsh-compat.mjs
     **20,454 → 18,164 字节。**
   - 上游同时加了 `tests/skill-size/test-skill-size.sh`，任何 `SKILL.md` 达到
     20,000 字节即失败。本 port 现在 15 个 SKILL.md **全部低于 20,000 字节**
-    （最大的是 `subagent-driven-development` 19,470）。
+    （最大的是 `subagent-driven-development`，v7.0.2 后 19,704）。
 - **与 DSH 无关的部分**：issue / PR 模板改为要求「谁提的、你的人类伙伴原本要什么、
   200 字以内由人写的摘要」（#2569），`diagnosing-superpowers` 跟着加这两节并改用
   Bug Report 模板，`docs/superpowers/plans/` 下 18 份历史计划文档被删除。这些都在

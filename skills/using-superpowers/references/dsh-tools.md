@@ -54,19 +54,37 @@ skill names (`code-reviewer.md`, `implementer-prompt.md`, ...).
 ## Bundled scripts: invoke them through their interpreter
 
 The skills ship bash and Node helpers (`scripts/sdd-workspace`,
-`scripts/task-brief`, `scripts/review-package`, `scripts/task-start`,
-`scripts/task-done`, `scripts/render-graphs.js`, `scripts/server.cjs`).
-Always invoke them through an interpreter — `bash scripts/task-brief PLAN N`,
-`node scripts/render-graphs.js` — never as a bare path. Package extractors
-(and Windows itself) do not preserve Unix executable bits, so a bare
-`scripts/task-brief` fails with `Permission denied`.
+`scripts/sdd-repo`, `scripts/task-brief`, `scripts/review-package`,
+`scripts/task-start`, `scripts/task-done`, `scripts/render-graphs.js`,
+`scripts/server.cjs`). Always invoke them through an interpreter —
+`bash scripts/task-brief PLAN N`, `node scripts/render-graphs.js` — never as a
+bare path. Package extractors (and Windows itself) do not preserve Unix
+executable bits, so a bare `scripts/task-brief` fails with `Permission denied`.
 
-- On Windows, `bash` means Git for Windows (Git Bash). If `bash` is not on
-  `PATH`, the bash-only helpers are unavailable; say so instead of inventing
-  an equivalent, and use the Node helper (`node scripts/server.cjs`) where one
-  exists.
-- Set `$DSH_HOME` (default `~/.dsh`) for user-level paths; skills that mention
-  `~/.claude/...` on Claude Code mean `$DSH_HOME/skills/...` here.
+**Call them by absolute path, from the repository you are working in.** The
+skill texts say this, and it matters more on DSH than elsewhere: a plugin's
+skills live inside the plugin installation, not in your project. The five
+execution helpers resolve the repository from the *current directory* (via
+`git rev-parse --show-toplevel`, like `git` itself), so:
+
+- Resolve the helper from the skill's own directory (the `resourceBase` the
+  `skill` tool returns) and pass that absolute path to `bash`.
+- Run it with the project as the working directory, or pass `-C DIR`.
+- `cd`-ing into the plugin directory first is the failure mode these helpers now
+  guard against: they would act on the plugin's own files, and outside a
+  repository they stop with exit 2 rather than writing a workspace into a cache
+  directory.
+- A brand-new project with no commits yet needs `git init` plus a first commit
+  before `task-start`/`task-brief` can work.
+
+On Windows, `bash` means Git for Windows (Git Bash). If `bash` is not on
+`PATH`, the bash-only helpers are unavailable; say so instead of inventing an
+equivalent, and use the Node helper (`node scripts/server.cjs`) where one
+exists. These helpers print paths PowerShell can open (they convert through
+`cygpath -m` where it exists, so you get `C:/Users/...` rather than `/c/Users/...`).
+
+Set `$DSH_HOME` (default `~/.dsh`) for user-level paths; skills that mention
+`~/.claude/...` on Claude Code mean `$DSH_HOME/skills/...` here.
 
 ## Session transcripts on disk
 
