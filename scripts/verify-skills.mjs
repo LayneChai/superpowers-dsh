@@ -11,6 +11,7 @@
  *   3. No upstream `superpowers:` namespace prefix survived the port.
  *   4. Every relative markdown link and every referenced `scripts/...` or
  *      `references/...` path points at a file that ships in this package.
+ *   5. Unloading the plugin releases its skill provider (`ctx.effect`).
  *
  * Exits non-zero listing every offender.
  *
@@ -32,15 +33,23 @@ const fail = (message) => problems.push(message)
 // ---- 1 & 2: drive the real provider -----------------------------------------
 const mod = await import(new URL('../lib/index.js', import.meta.url))
 let provider
+const effects = []
 const ctx = {
+  effect(callback) {
+    effects.push(callback())
+  },
   skills: {
     registerProvider(factory) {
       provider = factory({})
+      return () => {
+        provider = undefined
+      }
     }
   }
 }
 mod.apply(ctx)
 if (!provider) throw new Error('apply() did not register a provider')
+if (effects.length !== 1) throw new Error(`apply() registered ${effects.length} effects, expected 1`)
 
 const candidates = await provider.list({})
 if (candidates.length === 0) fail('provider.list() returned no skills')
@@ -137,6 +146,12 @@ for (const file of files) {
     }
   }
 }
+
+// ---- 5: plugin teardown releases the provider --------------------------------
+for (const dispose of effects) {
+  if (typeof dispose === 'function') dispose()
+}
+if (provider !== undefined) fail('plugin teardown left the skill provider registered')
 
 // ---- report ------------------------------------------------------------------
 if (problems.length > 0) {
