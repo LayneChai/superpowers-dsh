@@ -11,6 +11,8 @@
  *   3. No upstream `superpowers:` namespace prefix survived the port.
  *   4. Every relative markdown link and every referenced `scripts/...` or
  *      `references/...` path points at a file that ships in this package.
+ *   5. The DSH tool reference still names the tool families this port tells
+ *      the model to use (subagent control, task board, PTC, MCP, deliverables).
  *
  * Exits non-zero listing every offender.
  *
@@ -136,6 +138,31 @@ for (const file of files) {
       if (!(await resolveRef(file, target))) fail(`${rel}:${index + 1}: referenced path does not ship: ${target}`)
     }
   }
+}
+
+// ---- 5: the DSH reference names the tool families the skills rely on --------
+// A tool the reference never names is a tool the model invents a replacement
+// for, so a capability that silently drops out of the doc fails here.
+const DSH_REFERENCE = 'using-superpowers/references/dsh-tools.md'
+const REQUIRED_DSH_TOOLS = [
+  'list_agents',
+  'send_message',
+  'interrupt_agent',
+  'wait_agent',
+  'team_task_create',
+  'team_task_get',
+  'team_task_list',
+  'team_task_update',
+  'run_code',
+  'list_mcp_resources',
+  'list_mcp_resource_templates',
+  'read_mcp_resource',
+  'present'
+]
+const dshReference = await readFile(join(skillsRoot, DSH_REFERENCE), 'utf8')
+for (const tool of REQUIRED_DSH_TOOLS) {
+  if (!new RegExp(`\\b${tool}\\b`).test(dshReference))
+    fail(`${DSH_REFERENCE}: does not name ${tool}`)
 }
 
 // ---- report ------------------------------------------------------------------
