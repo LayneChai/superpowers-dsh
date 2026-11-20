@@ -28,7 +28,9 @@ project-level one.
 | `Read` / `Write` / `Edit` | `read` / `write` / `edit` | Same semantics; DSH adds `sandbox_permissions` escalation on write/edit. |
 | `Glob` / `Grep` | `glob` / `grep` | `glob` returns files only (never directories); `grep` is ripgrep syntax. |
 | `TodoWrite` | `todo_write` | Whole-list replacement each call. |
-| `Task` (subagents) | `subagent` / `subagent_fork` | Background by default; `subagent_fork` inherits this conversation. `send_message` continues a run by its agent id. |
+| `Task` (subagents) | `subagent` / `subagent_fork` | Background by default; `subagent_fork` inherits this conversation. `send_message` continues a run by its agent name (see below). |
+| Subagent discovery / interruption | `list_agents` / `interrupt_agent` | Agents below you in the subagent tree. See *Subagent lifecycle* below. |
+| `SendMessage` | `send_message` | Continues an idle child with a new turn, or steers a running one at its next step. |
 | `AskUserQuestion` | `ask_user_question` | Questions return stable ids echoed in answers. |
 | `WebSearch` / `WebFetch` | `web_search` / `web_fetch` | Search returns a summary plus source URLs. |
 | `LS` (file list) | `glob` + `read` | There is no dedicated `ls` tool. |
@@ -50,6 +52,81 @@ skill names (`code-reviewer.md`, `implementer-prompt.md`, ...).
   results — the DSH-native way to run `dispatching-parallel-agents` at scale.
 - `schedule_*`: durable reminders that re-deliver a prompt into this session.
 - `skill`: loads a skill's full instructions (see above).
+
+## Subagent lifecycle: discovery, messaging, interruption, waiting
+
+`subagent` returns the child's name right away and the child keeps working in
+the background. The four control tools below are what
+`subagent-driven-development` needs to check on a dispatch and rescue one that
+derailed; without them an agent tends to invent a delegation-control tool that
+does not exist.
+
+| Tool | Arguments | What it does |
+| --- | --- | --- |
+| `list_agents` | none | Your whole subagent tree: names, descriptions, and status. A descendant's name is its path from the root, such as `reviewer/checker`. |
+| `send_message` | `agent`, `message` | Delivers to a working agent at its next step, or starts a new turn for an idle one. Returns delivery confirmation. |
+| `interrupt_agent` | `agent` | Asks an agent below you to stop. Returns before it stops; it may run a few more steps. |
+| `wait_agent` | `timeout_ms` (10000–3600000, default 30000) | Waits for your next-step inbox: agent messages, completion notices, user steering. `timedOut: false` means input is already pending. |
+
+`running` means a turn is executing; `inactive` means no turn is executing,
+which is **not** task completion or success. A direct child already notifies
+you when it finishes, so do not poll `list_agents` in a loop. Use
+`send_message` to continue its conversation.
+
+`interrupt_agent` reaches only owned descendants (your children and deeper).
+It cannot be undone for external executions, which stop permanently; local
+subagents can be resumed with `send_message`. Subagents the interrupted agent
+started keep running.
+
+Argument naming moved across the 0.2 line: `agent` takes a name or a Session id
+on 0.2.2-alpha.3 and newer, the same calls took `agent_id` from 0.2.1-rc.2
+through 0.2.2-alpha.2, and the Team-scoped variants before 0.2.1-rc.2 took
+`target`. The schema in front of you wins over any version note here.
+
+On 0.2.2-rc.1 and newer the base bundle and the Web `standard`, `cordis`, and
+`ptc` presets ship `interrupt: false` for `tool-subagent-control`, so
+`interrupt_agent` may not be offered at all while messaging, discovery, and
+waiting still are. When it is missing, say so and ask the user how to proceed
+rather than substituting another tool or claiming the stop happened.
+
+## Agent Teams (opt-in)
+
+Turning on Team mode for a root Session adds a shared task board —
+`team_task_create`, `team_task_get`, `team_task_list`, `team_task_update` — and
+task-board guidance. It is **not** a second delegation family: `subagent`,
+`send_message`, `list_agents`, `interrupt_agent`, and `wait_agent` stay the way
+they are. Builds before 0.2.1-rc.2 exposed `spawn_teammate` and Team-scoped
+`send_message({ target })` variants; those are gone, so never emit them.
+
+- Create with `subject` and `description`; `blocked_by` lists task ids that must
+  finish first, and `write_scopes` is advisory only (workspace-relative file or
+  directory prefixes, not a lock).
+- Read before you write: `team_task_update` is a compare-and-set on
+  `expected_revision`, taken from the latest `team_task_get` or
+  `team_task_list`. `action` is one of `claim`, `release`, `edit`,
+  `set_dependencies`, `complete`, `reopen`, `reassign`, `delete`.
+- Readiness comes from `ready` / `blocked_by`, not from an agent's status.
+- A task change is not a message. From 0.2.1-rc.3 on, task updates do not end a
+  `wait_agent` call or wake an idle agent, so `send_message` whoever must act.
+
+## Programmatic tool calling, MCP resources, and deliverables
+
+- `run_code(code, description)`: PTC presets expose this instead of the
+  individual tools. `code` is the body of an async TypeScript function (top-level
+  `await` and `return` work; no enums or namespaces), tools are called as
+  `await tools.name(args)`, and `inspect(...)` shows output — not `console`.
+  `timeoutMs` defaults to 120000 and caps at 600000. When the preset does not
+  offer it, keep calling tools one at a time.
+- `list_mcp_resources(server, cursor)` and
+  `list_mcp_resource_templates(server, cursor)` enumerate an MCP server's
+  resources; `read_mcp_resource(server, uri)` reads one by URI. These are not
+  the server's tools: resources are content the server publishes, so read one
+  when a skill needs the server's own data rather than an action on it.
+- `present(files)`: declares existing files as final deliverables; hosts show
+  them after the turn ends. Usually 1–2 files, at most 4 per
+  call, each `{ path, description }`; contents are not copied, so the paths must
+  exist. Use it for separate files — Office documents, spreadsheets, decks — and
+  keep the answer in the reply when a file is not needed.
 
 ## Bundled scripts: invoke them through their interpreter
 
